@@ -1,10 +1,6 @@
+# Zombpocalypse Plugin Configuration File
 
-
-  #██████  ▄▄▄  ▄▄   ▄▄ ▄▄▄▄  ▄▄▄▄   ▄▄▄   ▄▄▄▄  ▄▄▄  ▄▄  ▄▄ ▄▄ ▄▄▄▄   ▄▄▄▄ ▄▄▄▄▄
-  # ▄▄▀▀  ██▀██ ██▀▄▀██ ██▄██ ██▄█▀ ██▀██ ██▀▀▀ ██▀██ ██  ▀███▀ ██▄█▀ ███▄▄ ██▄▄
-  #██████ ▀███▀ ██   ██ ██▄█▀ ██    ▀███▀ ▀████ ██▀██ ██▄▄▄ █   ██    ▄▄██▀ ██▄▄▄
-
-  enabled-worlds:
+enabled-worlds:
   - world
   - world_nether
   - world_the_end
@@ -17,6 +13,10 @@ zombie-settings:
   # NEW: Control specific zombie types
   allow-baby-zombies: true
   allow-zombie-villagers: true
+
+  # ZOMBIE GUTS FEATURE (Correctly placed under zombie-settings)
+  zombie-guts:
+    enabled: true # Corrected boolean value
 
 apocalypse-settings:
   spawn-rate: 1200 # Spawn attempt every 60 seconds (1200 ticks)

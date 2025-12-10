@@ -11,3 +11,6 @@ commands:
     permission: zombpocalypse.admin
   help: # <-- NEW /HELP COMMAND
     description: Displays plugin commands and info.
+  zitem: # <-- NEW /ZITEM COMMAND
+    description: Gives a special plugin item.
+    permission: zombpocalypse.admin
