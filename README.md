@@ -10,11 +10,13 @@
 
 | Status | Value | Source |
 | :--- | :--- | :--- |
-| **Version** | 1.0 | |
-| **Server API** | Spigot 1.18+ Compatible | |
-| **Build Target** | Java 21 | |
-| **License** | **GNU GPL v3.0** (Open Source) | |
-| **Author** | xDele1ed | |
+| **Version** | 1.0 | `plugin.yml` |
+| **Server API** | Spigot 1.18+ Compatible | `plugin.yml` |
+| **Build Target** | Java 21 | `pom.xml` |
+| **License** | **GNU GPL v3.0** (Open Source) | `LICENSE` file |
+| **Author** | xDele1ed | `plugin.yml` |
+
+---
 
 ---
 
