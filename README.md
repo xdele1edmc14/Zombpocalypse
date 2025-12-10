@@ -1,3 +1,6 @@
+````markdown
+# Zombpocalypse Plugin Showcase
+
 <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448218045448458415/minecraft_title.png?ex=693a75a8&is=69392428&hm=de327af9d48529822a668ba4fb3d7e586365e00141f979ba54c8f0101e411758" alt="Zombpocalypse" width="500"/>
 
 ## A Hardcore Zombie Horde Plugin for Spigot/Paper Servers
@@ -18,8 +21,6 @@
 
 ---
 
----
-
 ## ⚙️ Core Features
 
 * **Dynamic Horde Spawning:** Hordes of zombies periodically spawn and hunt players.
@@ -32,49 +33,47 @@
 * **Customizable Spawning:** Control when, where, and what mobs appear.
     * Hordes have a **25% chance** to spawn even during the day.
     * Mobs can be **BLACKLISTED** or **WHITELISTED** for natural spawning.
-    * Currently, **SKELETON**, **WITHER\_SKELETON**, and **SPIDER** are Blacklisted.
+    * Currently, **SKELETON**, **WITHER_SKELETON**, and **SPIDER** are Blacklisted.
 * **World Control:** Plugin activity is limited to configured worlds, currently `world`, `world_nether`, and `world_the_end`.
 
 ---
 
 ## 🛠️ Configuration (`config.yml` Highlights)
 
-The plugin is designed to be highly configurable. Here are some of the critical settings found in the `config.yml`:
-
 ```yaml
 zombie-settings:
-  health: 30.0 # Standard zombie health (Default is 20.0)
-  damage: 8.0  # Standard zombie attack damage (Default is 3.0)
-  speed: 0.35  # Standard zombie movement speed (Default is 0.23)
+  health: 30.0
+  damage: 8.0
+  speed: 0.35
 
 apocalypse-settings:
-  spawn-rate: 1200     # Ticks between each spawn attempt (20 ticks = 1 second)
-  base-horde-size: 5   # The guaranteed number of zombies in a horde
-  day-spawn-chance: 0.25 # Chance for a horde to spawn during daylight hours (0.0 - 1.0)
-  use-mob-blacklist: true # True = Blacklist mode, False = Whitelist mode
+  spawn-rate: 1200
+  base-horde-size: 5
+  day-spawn-chance: 0.25
+  use-mob-blacklist: true
+````
 
-  ---
+---
 
 ## 📸 Screenshots & Showcase
 
 <details>
   <summary>Click to view screenshots of Zombpocalypse in action!</summary>
+  <br/>
+
+### Daytime
+
+  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342332989504/2025-12-10_14.05.27.png?ex=693a7e51&is=69392cd1&hm=a3cc8aa31293fc5cc9ef7224e57a9aa9cc3ac2e540c4095de4606a455e426da6&" alt="Daytime Scene" width="800"/>
 
   <br/>
-  
-  ### Daytime
-  
-  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342332989504/2025-12-10_14.05.27.png?ex=693a7e51&is=69392cd1&hm=a3cc8aa31293fc5cc9ef7224e57a9aa9cc3ac2e540c4095de4606a455e426da6&" alt="You may be safe in the Daylight, As Less Zombies Spawn" width="800"/>
-  
-  <br/>
-  
-  ### Nighttime
-  
-  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342844428288/2025-12-10_14.13.29.png?ex=693a7e51&is=69392cd1&hm=87230db5571029bfc5c64b9e42f38d1ca152e75648d297dcac81c62efbce3fa4&" alt="But You WONT survive during nighttime" width="800"/>
+
+### Nighttime
+
+  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342844428288/2025-12-10_14.13.29.png?ex=693a7e51&is=69392cd1&hm=87230db5571029bfc5c64b9e42f38d1ca152e75648d297dcac81c62efbce3fa4&" alt="Nighttime Scene" width="800"/>
 
   <br/>
-  
-  *Note: Images are for demonstration and may not reflect the latest version.*
+
+*Note: Images are for demonstration and may not reflect the latest version.*
+
 </details>
-
----
+```
