@@ -52,3 +52,29 @@ apocalypse-settings:
   base-horde-size: 5   # The guaranteed number of zombies in a horde
   day-spawn-chance: 0.25 # Chance for a horde to spawn during daylight hours (0.0 - 1.0)
   use-mob-blacklist: true # True = Blacklist mode, False = Whitelist mode
+
+  ---
+
+## 📸 Screenshots & Showcase
+
+<details>
+  <summary>Click to view screenshots of Zombpocalypse in action!</summary>
+
+  <br/>
+  
+  ### Daytime
+  
+  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342332989504/2025-12-10_14.05.27.png?ex=693a7e51&is=69392cd1&hm=a3cc8aa31293fc5cc9ef7224e57a9aa9cc3ac2e540c4095de4606a455e426da6&" alt="You may be safe in the Daylight, As Less Zombies Spawn" width="800"/>
+  
+  <br/>
+  
+  ### Nighttime
+  
+  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342844428288/2025-12-10_14.13.29.png?ex=693a7e51&is=69392cd1&hm=87230db5571029bfc5c64b9e42f38d1ca152e75648d297dcac81c62efbce3fa4&" alt="But You WONT survive during nighttime" width="800"/>
+
+  <br/>
+  
+  *Note: Images are for demonstration and may not reflect the latest version.*
+</details>
+
+---
