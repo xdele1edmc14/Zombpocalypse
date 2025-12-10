@@ -1,4 +1,7 @@
 # Zombpocalypse Plugin Configuration File
+# ----------------------------------------------------------------------
+# V1.1 - Final Configuration with Aggressive Spawns and Light Control
+# ----------------------------------------------------------------------
 
 enabled-worlds:
   - world
@@ -14,22 +17,24 @@ zombie-settings:
   allow-baby-zombies: true
   allow-zombie-villagers: true
 
-  # ZOMBIE GUTS FEATURE (Correctly placed under zombie-settings)
+  # ZOMBIE GUTS FEATURE
   zombie-guts:
-    enabled: true # Corrected boolean value
+    enabled: true
 
 apocalypse-settings:
-  spawn-rate: 1200 # Spawn attempt every 60 seconds (1200 ticks)
+  spawn-rate: 100 # AGGRESSIVE: Spawn attempt every 5 seconds (100 ticks)
   spawn-radius: 40
-  base-horde-size: 5
-  horde-variance: 5
+  base-horde-size: 10 # AGGRESSIVE: Min 10 zombies per horde
+  horde-variance: 10 # AGGRESSIVE: Horde size will range from 10 to 20
 
   # Daylight Spawn Chance: Chance (0.0 to 1.0) of a horde spawning during the day.
-  day-spawn-chance: 0.25
+  day-spawn-chance: 1.0 # AGGRESSIVE: Spawn attempts happen just as often during the day
+
+  # NEW: Controls whether custom hordes ignore light levels (like inside a lit base)
+  # false: Respects light level 7, will not spawn inside lit bases.
+  ignore-light-level: false
 
   # Mob Blacklist/Whitelist Control
-  # True: Entities in the list are BLACKLISTED (will NOT spawn naturally).
-  # False: Entities in the list are WHITELISTED (only entities in the list CAN spawn naturally).
   use-mob-blacklist: true
 
   # List of mob types (Must be valid Minecraft entity names in ALL CAPS)

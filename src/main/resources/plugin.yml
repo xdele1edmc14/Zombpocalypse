@@ -1,7 +1,7 @@
 name: Zombpocalypse
-version: 1.0
+version: 1.1
 main: com.deleted.zombpocalypse.Zombpocalypse
-api-version: 1.18
+api-version: 1.21
 authors: [xDele1ed]
 description: A hardcore zombie horde plugin.
 
