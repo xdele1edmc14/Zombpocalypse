@@ -1,4 +1,3 @@
-````markdown
 # Zombpocalypse Plugin Showcase
 
 <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448218045448458415/minecraft_title.png?ex=693a75a8&is=69392428&hm=de327af9d48529822a668ba4fb3d7e586365e00141f979ba54c8f0101e411758" alt="Zombpocalypse" width="500"/>
@@ -11,47 +10,49 @@
 
 ## 💻 Project Status & Information
 
-| Status | Value | Source |
-| :--- | :--- | :--- |
-| **Version** | 1.0 | `plugin.yml` |
-| **Server API** | Spigot 1.18+ Compatible | `plugin.yml` |
-| **Build Target** | Java 21 | `pom.xml` |
-| **License** | **GNU GPL v3.0** (Open Source) | `LICENSE` file |
-| **Author** | xDele1ed | `plugin.yml` |
+| Status           | Value                          | Source         |
+| :--------------- | :----------------------------- | :------------- |
+| **Version**      | 1.0                            | `plugin.yml`   |
+| **Server API**   | Spigot 1.18+ Compatible        | `plugin.yml`   |
+| **Build Target** | Java 21                        | `pom.xml`      |
+| **License**      | **GNU GPL v3.0** (Open Source) | `LICENSE` file |
+| **Author**       | xDele1ed                       | `plugin.yml`   |
 
 ---
 
 ## ⚙️ Core Features
 
 * **Dynamic Horde Spawning:** Hordes of zombies periodically spawn and hunt players.
-    * Spawn attempts currently run every **60 seconds** (1200 ticks).
-    * The base horde size is **5** zombies per spawn.
+
+  * Spawn attempts currently run every **60 seconds** (1200 ticks).
+  * The base horde size is **5** zombies per spawn.
 * **Enhanced Combat:** Zombies are significantly buffed for a true survival challenge.
-    * Zombies have **30.0 Health** (15 hearts).
-    * They deal **8.0 Damage** (4 hearts) per hit.
-    * They have an increased base speed of **0.35**.
+
+  * Zombies have **30.0 Health** (15 hearts).
+  * They deal **8.0 Damage** (4 hearts) per hit.
+  * They have an increased base speed of **0.35**.
 * **Customizable Spawning:** Control when, where, and what mobs appear.
-    * Hordes have a **25% chance** to spawn even during the day.
-    * Mobs can be **BLACKLISTED** or **WHITELISTED** for natural spawning.
-    * Currently, **SKELETON**, **WITHER_SKELETON**, and **SPIDER** are Blacklisted.
+
+  * Hordes have a **25% chance** to spawn even during the day.
+  * Mobs can be **BLACKLISTED** or **WHITELISTED** for natural spawning.
+  * Currently, **SKELETON**, **WITHER_SKELETON**, and **SPIDER** are Blacklisted.
 * **World Control:** Plugin activity is limited to configured worlds, currently `world`, `world_nether`, and `world_the_end`.
 
 ---
 
 ## 🛠️ Configuration (`config.yml` Highlights)
 
-```yaml
+yaml
 zombie-settings:
-  health: 30.0
-  damage: 8.0
-  speed: 0.35
+health: 30.0
+damage: 8.0
+speed: 0.35
 
 apocalypse-settings:
-  spawn-rate: 1200
-  base-horde-size: 5
-  day-spawn-chance: 0.25
-  use-mob-blacklist: true
-````
+spawn-rate: 1200
+base-horde-size: 5
+day-spawn-chance: 0.25
+use-mob-blacklist: true
 
 ---
 
@@ -76,4 +77,3 @@ apocalypse-settings:
 *Note: Images are for demonstration and may not reflect the latest version.*
 
 </details>
-```
