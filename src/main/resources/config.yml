@@ -1,0 +1,39 @@
+
+
+  #██████  ▄▄▄  ▄▄   ▄▄ ▄▄▄▄  ▄▄▄▄   ▄▄▄   ▄▄▄▄  ▄▄▄  ▄▄  ▄▄ ▄▄ ▄▄▄▄   ▄▄▄▄ ▄▄▄▄▄
+  # ▄▄▀▀  ██▀██ ██▀▄▀██ ██▄██ ██▄█▀ ██▀██ ██▀▀▀ ██▀██ ██  ▀███▀ ██▄█▀ ███▄▄ ██▄▄
+  #██████ ▀███▀ ██   ██ ██▄█▀ ██    ▀███▀ ▀████ ██▀██ ██▄▄▄ █   ██    ▄▄██▀ ██▄▄▄
+
+  enabled-worlds:
+  - world
+  - world_nether
+  - world_the_end
+
+zombie-settings:
+  health: 30.0
+  damage: 8.0
+  speed: 0.35
+
+  # NEW: Control specific zombie types
+  allow-baby-zombies: true
+  allow-zombie-villagers: true
+
+apocalypse-settings:
+  spawn-rate: 1200 # Spawn attempt every 60 seconds (1200 ticks)
+  spawn-radius: 40
+  base-horde-size: 5
+  horde-variance: 5
+
+  # Daylight Spawn Chance: Chance (0.0 to 1.0) of a horde spawning during the day.
+  day-spawn-chance: 0.25
+
+  # Mob Blacklist/Whitelist Control
+  # True: Entities in the list are BLACKLISTED (will NOT spawn naturally).
+  # False: Entities in the list are WHITELISTED (only entities in the list CAN spawn naturally).
+  use-mob-blacklist: true
+
+  # List of mob types (Must be valid Minecraft entity names in ALL CAPS)
+  mob-list:
+    - SKELETON
+    - WITHER_SKELETON
+    - SPIDER

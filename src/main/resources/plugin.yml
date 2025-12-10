@@ -1,0 +1,13 @@
+name: Zombpocalypse
+version: 1.0
+main: com.deleted.zombpocalypse.Zombpocalypse
+api-version: 1.18
+authors: [xDele1ed]
+description: A hardcore zombie horde plugin.
+
+commands:
+  zreload:
+    description: Reloads the zombie apocalypse config.
+    permission: zombpocalypse.admin
+  help: # <-- NEW /HELP COMMAND
+    description: Displays plugin commands and info.
