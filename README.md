@@ -1,4 +1,4 @@
-<img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448218045448458415/minecraft_title.png?ex=693a75a8&is=69392428&hm=de327af9d48529822a668ba4fb3d7e586365e00141f979ba54c8f0101e411758" alt='Zombpocalypse" width="500"/>
+<img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448218045448458415/minecraft_title.png?ex=693a75a8&is=69392428&hm=de327af9d48529822a668ba4fb3d7e586365e00141f979ba54c8f0101e411758" alt="Zombpocalypse" width="500"/>
 ### A Hardcore Zombie Horde Plugin for Spigot/Paper Servers
 
 **Zombpocalypse** redefines survival by turning the standard Minecraft night into a relentless, terrifying ordeal. This plugin introduces customizable, super-powered zombie hordes that dynamically stalk players, dramatically raising the difficulty and realism of your server's survival experience.
