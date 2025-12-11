@@ -12,7 +12,7 @@
 
 | Status           | Value                          | Source         |
 | :--------------- | :----------------------------- | :------------- |
-| **Version**      | 1.0                            | `plugin.yml`   |
+| **Version**      | 1.2                            | `plugin.yml`   |
 | **Server API**   | Spigot 1.18+ Compatible        | `plugin.yml`   |
 | **Build Target** | Java 21                        | `pom.xml`      |
 | **License**      | **GNU GPL v3.0** (Open Source) | `LICENSE` file |
@@ -37,22 +37,65 @@
   * Mobs can be **BLACKLISTED** or **WHITELISTED** for natural spawning.
   * Currently, **SKELETON**, **WITHER_SKELETON**, and **SPIDER** are Blacklisted.
 * **World Control:** Plugin activity is limited to configured worlds, currently `world`, `world_nether`, and `world_the_end`.
+* **Zombie Guts:** Consume Zombie guts to gain a temporary immunity from zombies.
+* **Bloodmoon:** Every 10 days (Customizable), A Server-wide BloodMoon Occurs. During This Time Period, Zombies Will Get Buffed Health, Buffed Damage, And their spawn rates wiill increase  (All Customizeable)
+* **Griefprevention Support:** The Plugin has complete greifprevention support, So that zombies cannot spawn inside player's bases.
 
 ---
 
 ## 🛠️ Configuration (`config.yml` Highlights)
 
 yaml
+# Toggles console debug messages (spammy logs)
+debug-mode: false
+
+enabled-worlds:
+  - world
+  - world_nether
+  - world_the_end
+
+# NEW: External Plugin Hooks
+hooks:
+  griefprevention:
+    enabled: true
+    prevent-spawning-in-claims: true
+
 zombie-settings:
-health: 30.0
-damage: 8.0
-speed: 0.35
+  health: 30.0
+  damage: 8.0
+  speed: 0.35
+
+  allow-baby-zombies: true
+  allow-zombie-villagers: true
+
+  zombie-guts:
+    enabled: true
 
 apocalypse-settings:
-spawn-rate: 1200
-base-horde-size: 5
-day-spawn-chance: 0.25
-use-mob-blacklist: true
+  spawn-rate: 100
+  spawn-radius: 40
+  base-horde-size: 10
+  horde-variance: 10
+  day-spawn-chance: 1.0
+  ignore-light-level: false
+  use-mob-blacklist: true
+  mob-list:
+    - SKELETON
+    - WITHER_SKELETON
+    - SPIDER
+
+# NEW: Blood Moon Feature
+bloodmoon:
+  enabled: true
+  interval-days: 10 # Happens every X in-game days
+  bossbar-title: "§4§l☠ BLOOD MOON ☠ §cRemaining: %time%"
+
+  # Multipliers applied to zombies during the event
+  multipliers:
+    health: 2.0  # 30 * 2.0 = 60 HP
+    damage: 1.5  # 8 * 1.5 = 12 Dmg
+    speed: 1.2   # Speed buff
+    horde-size: 2.0 # 10 zombies becomes 20
 
 ---
 
@@ -64,15 +107,21 @@ use-mob-blacklist: true
 
 ### Daytime
 
-  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342332989504/2025-12-10_14.05.27.png?ex=693a7e51&is=69392cd1&hm=a3cc8aa31293fc5cc9ef7224e57a9aa9cc3ac2e540c4095de4606a455e426da6&" alt="Daytime Scene" width="800"/>
+  <img src="https://i.imgur.com/ImSWNd1.png" alt="Daytime Scene" width="800"/>
 
   <br/>
 
 ### Nighttime
 
-  <img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448227342844428288/2025-12-10_14.13.29.png?ex=693a7e51&is=69392cd1&hm=87230db5571029bfc5c64b9e42f38d1ca152e75648d297dcac81c62efbce3fa4&" alt="Nighttime Scene" width="800"/>
+  <img src="https://i.imgur.com/HuBR6TI.png" alt="Nighttime Scene" width="800"/>
 
   <br/>
+
+### Bloodmoon
+
+  <img src="https://i.imgur.com/PW2TPAS.png" alt="Bloodmoon Scene" width="800"/>
+
+  <br/> 
 
 *Note: Images are for demonstration and may not reflect the latest version.*
 
