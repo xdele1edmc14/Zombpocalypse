@@ -1,44 +1,55 @@
 # Zombpocalypse Plugin Configuration File
 # ----------------------------------------------------------------------
-# V1.1 - Final Configuration with Aggressive Spawns and Light Control
+# V1.2 - Blood Moon, GriefPrevention Support, and Debug Controls
 # ----------------------------------------------------------------------
+
+# Toggles console debug messages (spammy logs)
+debug-mode: false
 
 enabled-worlds:
   - world
   - world_nether
   - world_the_end
 
+# NEW: External Plugin Hooks
+hooks:
+  griefprevention:
+    enabled: true
+    prevent-spawning-in-claims: true
+
 zombie-settings:
   health: 30.0
   damage: 8.0
   speed: 0.35
 
-  # NEW: Control specific zombie types
   allow-baby-zombies: true
   allow-zombie-villagers: true
 
-  # ZOMBIE GUTS FEATURE
   zombie-guts:
     enabled: true
 
 apocalypse-settings:
-  spawn-rate: 100 # AGGRESSIVE: Spawn attempt every 5 seconds (100 ticks)
+  spawn-rate: 100
   spawn-radius: 40
-  base-horde-size: 10 # AGGRESSIVE: Min 10 zombies per horde
-  horde-variance: 10 # AGGRESSIVE: Horde size will range from 10 to 20
-
-  # Daylight Spawn Chance: Chance (0.0 to 1.0) of a horde spawning during the day.
-  day-spawn-chance: 1.0 # AGGRESSIVE: Spawn attempts happen just as often during the day
-
-  # NEW: Controls whether custom hordes ignore light levels (like inside a lit base)
-  # false: Respects light level 7, will not spawn inside lit bases.
+  base-horde-size: 10
+  horde-variance: 10
+  day-spawn-chance: 1.0
   ignore-light-level: false
-
-  # Mob Blacklist/Whitelist Control
   use-mob-blacklist: true
-
-  # List of mob types (Must be valid Minecraft entity names in ALL CAPS)
   mob-list:
     - SKELETON
     - WITHER_SKELETON
     - SPIDER
+
+# NEW: Blood Moon Feature
+bloodmoon:
+  enabled: true
+  interval-days: 10 # Happens every X in-game days
+  bossbar-title: "§4§l☠ BLOOD MOON ☠ §cRemaining: %time%"
+
+  # Multipliers applied to zombies during the event
+  multipliers:
+    health: 2.0  # 30 * 2.0 = 60 HP
+    damage: 1.5  # 8 * 1.5 = 12 Dmg
+    speed: 1.2   # Speed buff
+    horde-size: 2.0 # 10 zombies becomes 20

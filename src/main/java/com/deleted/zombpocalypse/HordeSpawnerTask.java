@@ -18,7 +18,8 @@ public class HordeSpawnerTask extends BukkitRunnable {
     @Override
     public void run() {
         try {
-            plugin.getLogger().info("TASK: Running scheduled spawner check. (Tick appearing!)");
+            // Replaced info log with debugLog
+            plugin.debugLog("TASK: Running scheduled spawner check.");
 
             if (Bukkit.getWorlds().isEmpty()) {
                 plugin.getLogger().severe("TASK ERROR: No worlds are loaded! Skipping spawn attempt.");
@@ -29,7 +30,6 @@ public class HordeSpawnerTask extends BukkitRunnable {
             long time = firstWorld.getTime();
             boolean isDay = time > 0 && time < 13000;
 
-            // Flag is TRUE only if it's DAYTIME AND the random chance passed.
             boolean isDayHordeSpawn = false;
 
             if (isDay) {
@@ -37,23 +37,20 @@ public class HordeSpawnerTask extends BukkitRunnable {
                 double randomValue = ThreadLocalRandom.current().nextDouble();
 
                 if (randomValue > daySpawnChance) {
-                    plugin.getLogger().info("TASK: Skipped spawn due to daySpawnChance (" + daySpawnChance + ").");
+                    plugin.debugLog("TASK: Skipped spawn due to daySpawnChance.");
                     return;
                 }
-                // If we reach here, it's a forced DAYTIME horde.
                 isDayHordeSpawn = true;
             }
 
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (!plugin.isWorldEnabled(player.getWorld())) {
-                    plugin.getLogger().info("TASK: Skipping player " + player.getName() + " - World not enabled.");
-                    continue;
+                    continue; // Silent skip
                 }
                 if (player.getGameMode().toString().equals("CREATIVE") || player.getGameMode().toString().equals("SPECTATOR")) {
-                    plugin.getLogger().info("TASK: Skipping player " + player.getName() + " - Game mode skip.");
-                    continue;
+                    continue; // Silent skip
                 }
-                // Pass the flag indicating if this is a forced daytime horde spawn
+
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);
             }
 
