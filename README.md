@@ -1,17 +1,35 @@
-# Zombpocalypse Plugin Showcase
+<h1 align="center">☠️ Zombpocalypse Plugin ☣️</h1>
 
-<img src="https://cdn.discordapp.com/attachments/1255505079549562982/1448218045448458415/minecraft_title.png?ex=693a75a8&is=69392428&hm=de327af9d48529822a668ba4fb3d7e586365e00141f979ba54c8f0101e411758" alt="Zombpocalypse" width="500"/>
+<p align="center">
+  <img src="https://i.imgur.com/M0z9eVF.png" width="600" alt="Zombpocalypse Banner"/>
+</p>
 
-## A Hardcore Zombie Horde Plugin for Spigot/Paper Servers
+<p align="center">
+  <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk"/>
+  <img src="https://img.shields.io/badge/Spigot-1.18%2B-red?style=for-the-badge&logo=spigotmc"/>
+  <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/Version-1.2-brightgreen?style=for-the-badge"/>
+</p>
 
-**Zombpocalypse** redefines survival by turning the standard Minecraft night into a relentless, terrifying ordeal. This plugin introduces customizable, super-powered zombie hordes that dynamically stalk players, dramatically raising the difficulty and realism of your server's survival experience.
+<p align="center">
+  <i>A brutal, customizable zombie apocalypse plugin for survival servers 🌑🧟</i><br>
+  <b>Optimized. Configurable. Terrifying.</b>
+</p>
 
 ---
 
-## 💻 Project Status & Information
+<p align="center">
+  <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk"/>
+  <img src="https://img.shields.io/badge/Spigot-1.18%2B-red?style=for-the-badge&logo=spigotmc"/>
+  <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/Version-1.2-brightgreen?style=for-the-badge"/>
+</p>
 
-| Status           | Value                          | Source         |
-| :--------------- | :----------------------------- | :------------- |
+<p align="center">
+  <i>A hardcore, fully customizable zombie apocalypse experience for Spigot & Paper servers.</i>
+</p>
+
+--------------- | :----------------------------- | :------------- |
 | **Version**      | 1.2                            | `plugin.yml`   |
 | **Server API**   | Spigot 1.18+ Compatible        | `plugin.yml`   |
 | **Build Target** | Java 21                        | `pom.xml`      |
@@ -22,44 +40,54 @@
 
 ## ⚙️ Core Features
 
-* **Dynamic Horde Spawning:** Hordes of zombies periodically spawn and hunt players.
+* **Dynamic Horde Spawning:**
 
-  * Spawn attempts currently run every **60 seconds** (1200 ticks).
-  * The base horde size is **5** zombies per spawn.
-* **Enhanced Combat:** Zombies are significantly buffed for a true survival challenge.
+  * Hordes spawn every **60 seconds** (1200 ticks).
+  * Base horde size: **5 zombies**.
 
-  * Zombies have **30.0 Health** (15 hearts).
-  * They deal **8.0 Damage** (4 hearts) per hit.
-  * They have an increased base speed of **0.35**.
-* **Customizable Spawning:** Control when, where, and what mobs appear.
+* **Enhanced Combat:**
 
-  * Hordes have a **25% chance** to spawn even during the day.
-  * Mobs can be **BLACKLISTED** or **WHITELISTED** for natural spawning.
-  * Currently, **SKELETON**, **WITHER_SKELETON**, and **SPIDER** are Blacklisted.
-* **World Control:** Plugin activity is limited to configured worlds, currently `world`, `world_nether`, and `world_the_end`.
-* **Zombie Guts:** Consume Zombie guts to gain a temporary immunity from zombies.
-* **Bloodmoon:** Every 10 days (Customizable), A Server-wide BloodMoon Occurs. During This Time Period, Zombies Will Get Buffed Health, Buffed Damage, And their spawn rates wiill increase  (All Customizeable)
-* **Griefprevention Support:** The Plugin has complete greifprevention support, So that zombies cannot spawn inside player's bases.
+  * **30.0 Health** per zombie.
+  * **8.0 Damage**.
+  * **0.35 Speed**.
+
+* **Customizable Spawning:**
+
+  * **25% chance** to spawn during daytime.
+  * Natural mob **blacklist/whitelist** support.
+  * Default blacklist: `SKELETON`, `WITHER_SKELETON`, `SPIDER`.
+
+* **World Control:** Active only in configured worlds: `world`, `world_nether`, `world_the_end`.
+
+* **Zombie Guts:** Grants temporary zombie immunity.
+
+* **Bloodmoon:** Occurs every 10 days (customizable) with buffed zombie attributes and spawn rates.
+
+* **GriefPrevention Support:** Zombies do **not** spawn inside GP claims.
 
 ---
 
-## 🛠️ Configuration (`config.yml` Highlights)
+## 🛠️ Configuration (`config.yml` Overview)
 
-yaml
-# Toggles console debug messages (spammy logs)
+Below is a cleaned, readable version of the configuration with explanations.
+
+```yaml
+# Enables detailed console logs
 debug-mode: false
 
+# Worlds where the plugin is active
 enabled-worlds:
   - world
   - world_nether
   - world_the_end
 
-# NEW: External Plugin Hooks
+# External plugin integration
 hooks:
   griefprevention:
     enabled: true
     prevent-spawning-in-claims: true
 
+# Zombie attribute settings
 zombie-settings:
   health: 30.0
   damage: 8.0
@@ -71,12 +99,13 @@ zombie-settings:
   zombie-guts:
     enabled: true
 
+# Apocalypse and horde spawning behavior
 apocalypse-settings:
-  spawn-rate: 100
-  spawn-radius: 40
+  spawn-rate: 100            # Ticks between spawn attempts
+  spawn-radius: 40           # Radius around players
   base-horde-size: 10
-  horde-variance: 10
-  day-spawn-chance: 1.0
+  horde-variance: 10         # +- variance
+  day-spawn-chance: 1.0      # 1.0 = 100%
   ignore-light-level: false
   use-mob-blacklist: true
   mob-list:
@@ -84,18 +113,18 @@ apocalypse-settings:
     - WITHER_SKELETON
     - SPIDER
 
-# NEW: Blood Moon Feature
+# Blood Moon event configuration
 bloodmoon:
   enabled: true
-  interval-days: 10 # Happens every X in-game days
+  interval-days: 10          # Every X in-game days
   bossbar-title: "§4§l☠ BLOOD MOON ☠ §cRemaining: %time%"
 
-  # Multipliers applied to zombies during the event
   multipliers:
-    health: 2.0  # 30 * 2.0 = 60 HP
-    damage: 1.5  # 8 * 1.5 = 12 Dmg
-    speed: 1.2   # Speed buff
-    horde-size: 2.0 # 10 zombies becomes 20
+    health: 2.0              # Doubles zombie HP
+    damage: 1.5              # 8 -> 12
+    speed: 1.2
+    horde-size: 2.0          # Doubles horde size
+```
 
 ---
 
@@ -107,22 +136,16 @@ bloodmoon:
 
 ### Daytime
 
-  <img src="https://i.imgur.com/ImSWNd1.png" alt="Daytime Scene" width="800"/>
-
-  <br/>
+<img src="https://i.imgur.com/ImSWNd1.png" alt="Daytime Scene" width="800"/>
 
 ### Nighttime
 
-  <img src="https://i.imgur.com/HuBR6TI.png" alt="Nighttime Scene" width="800"/>
-
-  <br/>
+<img src="https://i.imgur.com/HuBR6TI.png" alt="Nighttime Scene" width="800"/>
 
 ### Bloodmoon
 
-  <img src="https://i.imgur.com/PW2TPAS.png" alt="Bloodmoon Scene" width="800"/>
+<img src="https://i.imgur.com/PW2TPAS.png" alt="Bloodmoon Scene" width="800"/>
 
-  <br/> 
-
-*Note: Images are for demonstration and may not reflect the latest version.*
+*Note: Images may not reflect the latest version.*
 
 </details>
