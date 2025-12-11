@@ -16,28 +16,6 @@
   <b>Optimized. Configurable. Terrifying.</b>
 </p>
 
----
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk"/>
-  <img src="https://img.shields.io/badge/Spigot-1.18%2B-red?style=for-the-badge&logo=spigotmc"/>
-  <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Version-1.2-brightgreen?style=for-the-badge"/>
-</p>
-
-<p align="center">
-  <i>A hardcore, fully customizable zombie apocalypse experience for Spigot & Paper servers.</i>
-</p>
-
---------------- | :----------------------------- | :------------- |
-| **Version**      | 1.2                            | `plugin.yml`   |
-| **Server API**   | Spigot 1.18+ Compatible        | `plugin.yml`   |
-| **Build Target** | Java 21                        | `pom.xml`      |
-| **License**      | **GNU GPL v3.0** (Open Source) | `LICENSE` file |
-| **Author**       | xDele1ed                       | `plugin.yml`   |
-
----
-
 ## ⚙️ Core Features
 
 * **Dynamic Horde Spawning:**
