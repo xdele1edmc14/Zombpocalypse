@@ -1,0 +1,106 @@
+# Zombpocalypse v1.3.3 - Localization File
+# SUPPORTS BOTH FORMATS:
+# - MiniMessage: <gradient:red:blue>Text</gradient>, <rainbow>Text</rainbow>, <#FF5555>Hex</color>
+# - Legacy: &a, &b, &l, &n, §c, etc.
+# Use {0}, {1} for placeholders
+
+# General Messages
+prefix: "&4[Zombpocalypse]&r"
+reload-success: "<gradient:green:aqua>Configuration and language files reloaded!</gradient>"
+reload-error: "&cError reloading: {0}"
+no-permission: "&cYou don't have permission to use this command."
+player-only: "&cThis command can only be used by players."
+
+# Commands
+commands:
+  help:
+    header: "&4&l--- Zombpocalypse v1.3.3 ---"
+    author: "&aBy xDele1ed"
+    reload: "&b/za reload&7: Reload config and language"
+    spawn: "&b/zspawn <type|horde> [count] [radius]&7: Spawn zombies"
+    item: "&b/zitem <item>&7: Get special items"
+    bloodmoon: "&b/forcebloodmoon&7: Force Blood Moon event"
+
+  spawn:
+    usage: "&cUsage: /zspawn <type|horde> [count] [radius]"
+    invalid-type: "&cInvalid zombie type: {0}"
+    invalid-number: "&cInvalid number: {0}"
+    success-horde: "&aSpawned horde of {0} zombies!"
+    success-type: "&aSpawned {0} {1} zombies!"
+    blocked-claim: "&cCannot spawn in protected area."
+
+  item:
+    usage: "&cUsage: /zitem <item>"
+    unknown: "&cUnknown item: {0}"
+    received: "&aYou received: {0}"
+
+# Zombie Classes - Nametags
+zombies:
+  swarmer: "&7⚔ Swarmer"
+  miner: "&6⛏ Miner"
+  nurse: "&d❤ Nurse"
+  runner: "&b⚡ Runner"
+  spitter: "&a☠ Spitter"
+  psychopath: "&c⚔ Psychopath"
+  scorched: "&4🔥 Scorched"
+  tank: "&8⛨ Tank"
+  builder: "&e⬆ Builder"
+  veteran: "&e★ Veteran"
+  assassin: "&5⚔ Assassin"
+  burster: "&c💣 Burster"
+  frost: "&b❄ Frost"
+
+# Blood Moon
+bloodmoon:
+  bossbar-title: "<gradient:dark_red:red>☠ BLOOD MOON ☠</gradient> <white>Remaining: {0}</white>"
+  force-start: "<gradient:dark_red:red>&lBlood Moon has been FORCE STARTED!</gradient>"
+  force-time-set: "&7(Time set to night to begin event immediately)"
+  natural-start: "&4&lBLOOD MOON RISES! &cPrepare for battle!"
+  natural-end: "&6The Blood Moon fades..."
+
+# Immunity System
+immunity:
+  item-name: "&2&lZombie Guts"
+  item-lore:
+    - "&7Consume to gain temporary immunity"
+    - "&cReduces Max Health to 5 Hearts for 10 minutes"
+
+  consumed: "&2&lYou consumed Zombie Guts!&a Zombies will ignore you for 10 minutes."
+  already-immune: "&eYou are already immune! Wait for the effect to wear off."
+  bossbar: "&2&lZombie Guts Immunity: &a{0}"
+  expired: "&6&lYour Zombie Guts immunity has worn off!"
+  health-restored: "&aYour maximum health has been restored."
+
+# Scent System
+scent:
+  high-warning: "&cYour scent is HIGH! Larger hordes incoming..."
+  very-high-warning: "&4&lDANGER! &cMassive horde attracted by your scent!"
+
+# Performance Warnings
+performance:
+  tps-drop-warning: "&e[Performance] TPS low ({0}), reducing zombie spawns..."
+  tps-recovered: "&a[Performance] TPS recovered, normal spawning resumed."
+  entity-limit-reached: "&c[Performance] Entity limit reached, spawning paused."
+
+# Mutations (New in v1.3.3)
+mutations:
+  assassin:
+    spawn-message: "&5An Assassin stalks you from the shadows..."
+    detected: "&eYou sense something nearby..."
+
+  burster:
+    fuse-warning: "&c&lBEEP... BEEP... BEEP!"
+    explosion-near: "&4&lEXPLOSION INCOMING!"
+
+  frost:
+    frozen: "&bYou've been frozen!"
+    slow-effect: "&7Your movement is hindered by frost..."
+
+# Debug Messages (only shown when debug-mode: true)
+debug:
+  spawn-attempt: "[DEBUG] Attempting spawn: {0} zombies near {1}"
+  spawn-blocked: "[DEBUG] Spawn blocked: {0}"
+  mutation-applied: "[DEBUG] Applied mutation {0} to zombie {1}"
+  tps-check: "[DEBUG] Current TPS: {0}"
+  entity-lod: "[DEBUG] Entity {0} LOD changed: {1}"
+  sensory-trigger: "[DEBUG] Sensory event: {0} at {1}"

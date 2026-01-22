@@ -1,0 +1,33 @@
+name: Zombpocalypse
+version: 1.3.3-ALPHA
+main: com.deleted.zombpocalypse.Zombpocalypse
+api-version: 1.21
+authors: [xDele1ed]
+description: A hardcore zombie horde plugin with advanced AI, Blood Moons, and GriefPrevention support.
+
+softdepend: [GriefPrevention]
+
+commands:
+  zreload:
+    description: Reloads the zombie apocalypse config.
+    permission: zombpocalypse.admin
+  help:
+    description: Displays plugin commands and info.
+  zitem:
+    description: Gives a special plugin item.
+    permission: zombpocalypse.admin
+  forcebloodmoon:
+    description: Forces a Blood Moon to start immediately.
+    permission: zombpocalypse.admin
+    aliases: [fbm]
+  zspawn:
+    description: Spawns zombies of specific type or horde.
+    usage: /zspawn <type|horde> [count] [radius]
+    permission: zombpocalypse.command.zspawn
+permissions:
+  zombpocalypse.admin:
+    description: Access to all admin commands
+    default: op
+  zombpocalypse.command.zspawn:
+    description: Ability to spawn custom zombies
+    default: op
