@@ -95,33 +95,93 @@ public class ZombpocalypseUtils {
     }
 
     private void applyZombieStats(Zombie zombie, ZombieType type) {
-        double baseHealth = plugin.getConfig().getDouble("zombie-settings.health", 30.0);
-        double baseDamage = plugin.getConfig().getDouble("zombie-settings.damage", 8.0);
-        double baseSpeed = plugin.getConfig().getDouble("zombie-settings.speed", 0.35);
+        double baseHealth = plugin.getConfig().getDouble("zombie-settings.health", 25.0);
+        double baseDamage = plugin.getConfig().getDouble("zombie-settings.damage", 6.0);
+        double baseSpeed = plugin.getConfig().getDouble("zombie-settings.speed", 0.32);
 
-        if (plugin.isBloodMoonActive(zombie.getWorld())) {
-            baseHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 2.0);
-            baseDamage *= plugin.getConfig().getDouble("bloodmoon.multipliers.damage", 1.5);
-            baseSpeed *= plugin.getConfig().getDouble("bloodmoon.multipliers.speed", 1.2);
+        boolean isBloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
+        if (isBloodMoon) {
+            baseHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 1.5);
+            baseDamage *= plugin.getConfig().getDouble("bloodmoon.multipliers.damage", 1.3);
+            baseSpeed *= plugin.getConfig().getDouble("bloodmoon.multipliers.speed", 1.1);
         }
 
         switch (type) {
-            case RUNNER -> {
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, 0.45);
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.7);
-                zombie.setHealth(baseHealth * 0.7);
-            }
-            case TANK -> {
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, 60.0);
-                zombie.setHealth(60.0);
-                setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, 0.9);
-                zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
-            }
-            default -> {
+            case SWARMER -> {
+                // Basic zombie - standard stats
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case RUNNER -> {
+                // Fast but fragile
+                double healthMult = plugin.getConfig().getDouble("zombie-classes.runner.health-multiplier", 0.75);
+                double runnerSpeed = plugin.getConfig().getDouble("zombie-classes.runner.speed", 0.38);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * healthMult);
+                zombie.setHealth(baseHealth * healthMult);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.9);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, runnerSpeed);
+            }
+            case TANK -> {
+                // High HP, armored, knockback resistant
+                double tankHealth = plugin.getConfig().getDouble("zombie-classes.tank.health", 50.0);
+                double knockbackResist = plugin.getConfig().getDouble("zombie-classes.tank.knockback-resistance", 0.6);
+                if (isBloodMoon) {
+                    tankHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 1.5);
+                }
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, tankHealth);
+                zombie.setHealth(tankHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 1.2);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.85);
+                setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, knockbackResist);
+                zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
+            }
+            case MINER -> {
+                // Standard stats, focused on block breaking
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case NURSE -> {
+                // Support zombie - lower damage, standard HP
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.7);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case SPITTER -> {
+                // Ranged attacker - lower HP, standard speed
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.85);
+                zombie.setHealth(baseHealth * 0.85);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case SCORCHED -> {
+                // Fire zombie - standard stats with fire aura
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                zombie.setFireTicks(Integer.MAX_VALUE); // Immune to fire
+            }
+            case PSYCHOPATH -> {
+                // Berserker - higher damage, speed bonus when enraged
+                double attackBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.attack-bonus", 2.0);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case VETERAN -> {
+                // Elite zombie - transformed from kills
+                double attackBonus = plugin.getConfig().getDouble("zombie-classes.veteran.attack-bonus", 4.0);
+                double healthAdd = plugin.getConfig().getDouble("zombie-classes.veteran.add-health", 0.0);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth + healthAdd);
+                zombie.setHealth(baseHealth + healthAdd);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 1.1);
             }
         }
     }

@@ -34,6 +34,8 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private List<String> enabledWorlds;
     private ZombpocalypseUtils utils;
     private MessageManager messageManager;
+    private PerformanceWatchdog performanceWatchdog;
+    private HordeDirector hordeDirector;
 
     // --- PERSISTENCE FIELDS ---
     private File dataFile;
@@ -75,6 +77,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     // --- SCENT TRACKING ---
     private final Map<UUID, Double> playerScent = new HashMap<>();
     private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
+    private final Map<UUID, Long> lastJumpTime = new HashMap<>();
 
     // --- AI TICKER ---
     private BukkitTask aiTask;
@@ -110,6 +113,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         // --- Utils Setup ---
         utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
 
+        // --- Performance Watchdog Setup ---
+        performanceWatchdog = new PerformanceWatchdog(this);
+        performanceWatchdog.start();
+
+        // --- Horde Director Setup ---
+        hordeDirector = new HordeDirector(this, utils);
+
         getServer().getPluginManager().registerEvents(this, this);
 
         // Register commands
@@ -137,6 +147,14 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     @Override
     public void onDisable() {
         saveImmunityData();
+
+        if (performanceWatchdog != null) {
+            performanceWatchdog.stop();
+        }
+
+        if (hordeDirector != null) {
+            hordeDirector.stop();
+        }
 
         for (BossBar bar : immunityBossBars.values()) {
             bar.removeAll();
@@ -301,6 +319,32 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         } else {
             // Stopped sprinting
             playerSprinting.put(uuid, false);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJump(PlayerMoveEvent event) {
+        if (!getConfig().getBoolean("scent-system.enabled", true)) return;
+
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        // Detect jumping by checking if player's Y velocity is positive and they're on ground
+        // Use cooldown to prevent multiple triggers from the same jump
+        long currentTime = System.currentTimeMillis();
+        Long lastJump = lastJumpTime.get(uuid);
+        
+        if (lastJump != null && (currentTime - lastJump) < 500) {
+            return; // Cooldown: only trigger once per 500ms
+        }
+
+        if (player.isOnGround() && event.getTo() != null && event.getFrom() != null) {
+            double deltaY = event.getTo().getY() - event.getFrom().getY();
+            if (deltaY > 0.1) { // Significant upward movement indicates a jump
+                double jumpAdd = getConfig().getDouble("scent-system.jump-add", 0.5);
+                addPlayerScent(uuid, jumpAdd);
+                lastJumpTime.put(uuid, currentTime);
+            }
         }
     }
 
@@ -575,6 +619,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         }
 
         playerSprinting.remove(uuid);
+        lastJumpTime.remove(uuid);
 
         saveImmunityData();
     }
@@ -766,7 +811,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     void spawnZombiesNearPlayer(Player player, boolean isDayHordeSpawn) {
         int baseAmount = getConfig().getInt("apocalypse-settings.base-horde-size", 10);
         int variance = getConfig().getInt("apocalypse-settings.horde-variance", 5);
-        int radius = getConfig().getInt("apocalypse-settings.spawn-radius", 40);
 
         World world = player.getWorld();
         int safeVariance = Math.max(0, variance);
@@ -793,43 +837,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
         debugLog("Attempting to spawn horde of size: " + totalAmount + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
-        boolean shouldRespectLightLevel = !(isDayHordeSpawn || ignoreLightLevel);
-        final int LIGHT_THRESHOLD = 8;
-
-        for (int i = 0; i < totalAmount; i++) {
-            double xOffset = ThreadLocalRandom.current().nextDouble(-radius, radius);
-            double zOffset = ThreadLocalRandom.current().nextDouble(-radius, radius);
-            Location spawnLoc = player.getLocation().add(xOffset, 0, zOffset);
-
-            if (isInsideClaim(spawnLoc)) {
-                debugLog("Blocked spawn inside GriefPrevention claim.");
-                continue;
-            }
-
-            Location searchLoc = spawnLoc.clone().add(0, 3, 0);
-            boolean foundSurface = false;
-            for (int j = 0; j < 6; j++) {
-                if (searchLoc.clone().add(0, -1, 0).getBlock().getType().isSolid()) {
-                    spawnLoc.setY(searchLoc.getBlockY());
-                    foundSurface = true;
-                    break;
-                }
-                searchLoc.add(0, -1, 0);
-            }
-            if (!foundSurface) continue;
-
-            Material blockType = spawnLoc.getBlock().getRelative(0, -1, 0).getType();
-            if (blockType == Material.WATER || blockType == Material.LAVA) continue;
-
-            if (shouldRespectLightLevel) {
-                int lightLevelSpawn = spawnLoc.getBlock().getLightLevel();
-                int lightLevelBelow = spawnLoc.clone().add(0, -1, 0).getBlock().getLightLevel();
-
-                if (lightLevelSpawn >= LIGHT_THRESHOLD || lightLevelBelow >= LIGHT_THRESHOLD) {
-                    continue;
-                }
-            }
-            world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
+        // Use HordeDirector to queue spawns with directional spawning and FOV masking
+        if (hordeDirector != null) {
+            hordeDirector.queueZombieSpawns(player, totalAmount, isDayHordeSpawn);
         }
     }
 
@@ -849,6 +859,12 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 loadConfigValues();
                 messageManager.reload();
                 utils.reloadWeights();
+                if (performanceWatchdog != null) {
+                    performanceWatchdog.reload();
+                }
+                if (hordeDirector != null) {
+                    hordeDirector.reload();
+                }
                 startSpawnerTask();
                 startImmunityBossBarTask();
                 startBloodMoonTask();
