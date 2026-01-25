@@ -815,8 +815,8 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     }
 
     void spawnZombiesNearPlayer(Player player, boolean isDayHordeSpawn) {
-        int baseAmount = getConfig().getInt("apocalypse-settings.base-horde-size", 10);
-        int variance = getConfig().getInt("apocalypse-settings.horde-variance", 5);
+        int baseAmount = getConfig().getInt("apocalypse-settings.base-horde-size", 6);
+        int variance = getConfig().getInt("apocalypse-settings.horde-variance", 4);
 
         World world = player.getWorld();
         int safeVariance = Math.max(0, variance);
@@ -831,21 +831,40 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         // Scent multiplier
         if (getConfig().getBoolean("scent-system.enabled", true)) {
             double scent = getPlayerScent(player.getUniqueId());
-            double scentScale = getConfig().getDouble("scent-system.scent-scale", 10.0);
+            double scentScale = getConfig().getDouble("scent-system.scent-scale", 15.0);
             multiplier *= (1.0 + (scent / scentScale));
         }
 
-        int totalAmount = (int) ((baseAmount + ThreadLocalRandom.current().nextInt(safeVariance + 1)) * multiplier);
+        // Apply multiplier BEFORE calculating final amount
+        int finalHordeSize = (int) ((baseAmount + ThreadLocalRandom.current().nextInt(safeVariance + 1)) * multiplier);
 
-        // Cap
-        int spawnCap = getConfig().getInt("scent-system.spawn-cap", 50);
-        totalAmount = Math.min(totalAmount, spawnCap);
+        // Cap with max-total-zombies instead of scent-system.spawn-cap
+        int spawnCap = getConfig().getInt("performance.max-total-zombies", 300);
+        finalHordeSize = Math.min(finalHordeSize, spawnCap);
 
-        debugLog("Attempting to spawn horde of size: " + totalAmount + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
+        debugLog("Attempting to spawn horde of size: " + finalHordeSize + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
-        // Use HordeDirector to queue spawns with directional spawning and FOV masking
+        // BYPASS THE QUEUE: Spawn zombies IMMEDIATELY in a loop like /zspawn command
         if (hordeDirector != null) {
-            hordeDirector.queueZombieSpawns(player, totalAmount, isDayHordeSpawn);
+            int spawnRadius = getConfig().getInt("apocalypse-settings.spawn-radius", 35);
+            
+            for (int i = 0; i < finalHordeSize; i++) {
+                // Calculate location like /zspawn command
+                double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+                double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+                Location spawnLoc = player.getLocation().clone().add(xOffset, 1, zOffset);
+                
+                // Check if inside claim
+                if (isInsideClaim(spawnLoc)) {
+                    continue;
+                }
+                
+                // Spawn zombie immediately
+                Zombie zombie = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
+                if (zombie != null) {
+                    utils.assignZombieType(zombie);
+                }
+            }
         }
     }
 
@@ -870,6 +889,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 }
                 if (hordeDirector != null) {
                     hordeDirector.reload();
+                    // EMERGENCY FLUSH: Clear the dead queue
+                    hordeDirector.emergencyFlushQueue();
+                    sender.sendMessage("§aEmergency queue flush completed");
                 }
                 startSpawnerTask();
                 startImmunityBossBarTask();
@@ -966,8 +988,8 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 }
             }
 
-            count = Math.min(count, 50); // Safety cap
-            radius = Math.min(radius, 50);
+            count = Math.min(count, getConfig().getInt("performance.max-total-zombies", 300)); // Use config value
+            radius = Math.min(radius, 50); // Keep radius reasonable
 
             if (typeArg.equals("HORDE")) {
                 // Spawn mixed horde

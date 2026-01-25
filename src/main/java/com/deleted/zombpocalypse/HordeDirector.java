@@ -1,16 +1,12 @@
 package com.deleted.zombpocalypse;
 
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -35,7 +31,10 @@ public class HordeDirector {
         this.plugin = plugin;
         this.utils = utils;
         loadConfig();
-        startQueueProcessor();
+        plugin.getLogger().info("Starting HordeDirector queue processor...");
+        // DISABLE THE QUEUE: Comment out startQueueProcessor - queue is dead
+        // startQueueProcessor();
+        plugin.getLogger().info("HordeDirector started with IMMEDIATE spawning (queue disabled)");
     }
 
     private void loadConfig() {
@@ -46,6 +45,7 @@ public class HordeDirector {
     public void reload() {
         loadConfig();
         stopQueueProcessor();
+        spawnQueue.clear(); // FLUSH THE TOILET: Clear ghost zombies
         startQueueProcessor();
     }
 
@@ -54,12 +54,14 @@ public class HordeDirector {
             queueProcessor.cancel();
         }
 
+        plugin.getLogger().info("Starting queue processor task...");
         queueProcessor = new BukkitRunnable() {
             @Override
             public void run() {
                 processSpawnQueue();
             }
         }.runTaskTimer(plugin, 0L, 1L); // Run every tick
+        plugin.getLogger().info("Queue processor task started successfully");
     }
 
     private void stopQueueProcessor() {
@@ -80,7 +82,14 @@ public class HordeDirector {
      */
     private void processSpawnQueue() {
         int spawned = 0;
-        while (!spawnQueue.isEmpty() && spawned < maxSpawnsPerTick) {
+        if (spawnQueue.size() > 0) {
+            plugin.debugLog("Processing queue with " + spawnQueue.size() + " items");
+        }
+        
+        // THE 'BULK' UPDATE: Spawn 50% of entire queue every tick
+        int toSpawn = Math.max(maxSpawnsPerTick, spawnQueue.size() / 2);
+        
+        for (int i = 0; i < toSpawn && !spawnQueue.isEmpty(); i++) {
             SpawnRequest request = spawnQueue.poll();
             if (request == null) break;
 
@@ -92,15 +101,33 @@ public class HordeDirector {
                 continue;
             }
 
-            Location spawnLoc = findSpawnLocation(request.player, request.isDayHordeSpawn);
+            // Retry logic: try 5 different locations before giving up
+            Location spawnLoc = null;
+            for (int attempt = 0; attempt < 5; attempt++) {
+                spawnLoc = findSpawnLocation(request.player, request.isDayHordeSpawn);
+                if (spawnLoc != null) {
+                    break; // Found valid location
+                }
+            }
+
             if (spawnLoc != null) {
-                // Spawn zombie with rising effect
-                Zombie zombie = spawnZombieWithRisingEffect(spawnLoc, request.player.getWorld());
+                // Spawn zombie directly on surface
+                Zombie zombie = (Zombie) request.player.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
                 if (zombie != null) {
                     utils.assignZombieType(zombie);
                     spawned++;
                 }
             }
+        }
+        
+        // ADD EMERGENCY CLEAR: Prevent queue from growing too large
+        if (spawnQueue.size() > 5000) {
+            plugin.getLogger().warning("Emergency queue clear: " + spawnQueue.size() + " items cleared");
+            spawnQueue.clear();
+        }
+        
+        if (spawned > 0) {
+            plugin.debugLog("Spawned " + spawned + " zombies this tick, queue remaining: " + spawnQueue.size());
         }
     }
 
@@ -111,234 +138,50 @@ public class HordeDirector {
      * @param isDayHordeSpawn Whether this is a day horde spawn
      */
     public void queueZombieSpawns(Player player, int totalAmount, boolean isDayHordeSpawn) {
+        plugin.debugLog("Adding " + totalAmount + " zombies to queue for " + player.getName());
         for (int i = 0; i < totalAmount; i++) {
             spawnQueue.offer(new SpawnRequest(player, isDayHordeSpawn));
         }
+        plugin.debugLog("Queue size after adding: " + spawnQueue.size());
     }
 
     /**
-     * Find a valid spawn location in a strict 160° rear arc behind the player
-     * Uses FOV masking to ensure zombies only spawn behind the player
-     * Uses dot product check: if dotProduct > -0.3, reject and retry
+     * Find a valid spawn location using simple random offset (like the old version)
+     * Zombies spawn anywhere in radius, 360 degrees around player
      */
     private Location findSpawnLocation(Player player, boolean isDayHordeSpawn) {
         Location playerLoc = player.getLocation();
         World world = playerLoc.getWorld();
         if (world == null) return null;
 
-        Vector playerDirection = playerLoc.getDirection().setY(0).normalize();
-        Vector playerPosition = playerLoc.toVector();
+        // Simple random offset (like the old version)
+        double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+        double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
 
-        int maxAttempts = 15;
-        double minDistance = spawnRadius * 0.6;
-        double maxDistance = spawnRadius;
-        
-        for (int attempt = 0; attempt < maxAttempts; attempt++) {
-            // Generate angle in 160° rear arc (100° to 260° relative to player facing)
-            // This creates a tighter 80° spread on each side of directly behind
-            double angleProgress = ThreadLocalRandom.current().nextDouble();
-            double angleRadians = Math.toRadians(100.0 + (angleProgress * 160.0));
-            double distance = ThreadLocalRandom.current().nextDouble(minDistance, maxDistance);
-            
-            // Calculate spawn offset using trigonometry
-            double xOffset = distance * Math.cos(angleRadians);
-            double zOffset = distance * Math.sin(angleRadians);
-            
-            // Rotate the offset to align with player's facing direction
-            Vector rotatedOffset = rotateVector(new Vector(xOffset, 0, zOffset), playerLoc.getYaw());
-            Vector spawnPosition = playerPosition.clone().add(rotatedOffset);
-            
-            Location candidateLoc = new Location(world, 
-                    spawnPosition.getX(),
-                    playerLoc.getY(),
-                    spawnPosition.getZ(),
-                    playerLoc.getYaw(),
-                    playerLoc.getPitch());
-
-            // Strict dot product check - ensure spawn is behind player
-            Vector toSpawn = spawnPosition.subtract(playerPosition).normalize();
-            double dotProduct = playerDirection.dot(toSpawn);
-            
-            // Reject if not in rear 160° arc (dotProduct > -0.3 means too far to the side or front)
-            if (dotProduct > -0.3) {
-                continue; // Not in rear arc
-            }
-
-            // Check if inside claim
-            if (plugin.isInsideClaim(candidateLoc)) {
-                continue;
-            }
-
-            Location surfaceLoc = findSurfaceLocation(candidateLoc);
-            if (surfaceLoc == null) continue;
-
-            // Check for water/lava
-            Material blockType = surfaceLoc.getBlock().getRelative(0, -1, 0).getType();
-            if (blockType == Material.WATER || blockType == Material.LAVA) {
-                continue;
-            }
-
-            // Check light level if needed
-            boolean shouldRespectLightLevel = !(isDayHordeSpawn || plugin.getConfig().getBoolean("apocalypse-settings.ignore-light-level", false));
-            if (shouldRespectLightLevel) {
-                int lightLevelSpawn = surfaceLoc.getBlock().getLightLevel();
-                int lightLevelBelow = surfaceLoc.getBlock().getRelative(0, -1, 0).getLightLevel();
-                int LIGHT_THRESHOLD = 8;
-                
-                if (lightLevelSpawn >= LIGHT_THRESHOLD || lightLevelBelow >= LIGHT_THRESHOLD) {
-                    continue;
-                }
-            }
-
-            return surfaceLoc;
+        // Check if inside claim
+        Location testLoc = playerLoc.clone().add(xOffset, 0, zOffset);
+        if (plugin.isInsideClaim(testLoc)) {
+            return null;
         }
 
-        // Fallback: try a simple random location if all attempts failed
-        return findFallbackSpawnLocation(player, isDayHordeSpawn);
+        // RE-VERIFY: Pure command-style spawning - no search, no caves, no roofs
+        return playerLoc.clone().add(xOffset, 1, zOffset);
     }
 
     /**
-     * Find surface location by searching downward from a candidate location
-     * Optimized: Reuses Location objects to reduce GC pressure
+     * EMERGENCY FLUSH: Clear the dead queue
      */
-    private Location findSurfaceLocation(Location candidateLoc) {
-        int startY = candidateLoc.getBlockY() + 3;
-        int minY = Math.max(candidateLoc.getBlockY() - 3, candidateLoc.getWorld().getMinHeight());
-        
-        for (int y = startY; y >= minY; y--) {
-            Location checkLoc = new Location(candidateLoc.getWorld(), 
-                    candidateLoc.getX(), y, candidateLoc.getZ());
-            if (checkLoc.getBlock().getRelative(0, -1, 0).getType().isSolid()) {
-                candidateLoc.setY(y);
-                return candidateLoc;
-            }
-        }
-        return null;
+    public void emergencyFlushQueue() {
+        int size = spawnQueue.size();
+        spawnQueue.clear();
+        plugin.getLogger().info("Emergency queue flush: " + size + " items cleared");
     }
 
-    /**
-     * Fallback spawn location finder (simpler logic if directional spawning fails)
-     */
-    private Location findFallbackSpawnLocation(Player player, boolean isDayHordeSpawn) {
-        Location playerLoc = player.getLocation();
-        World world = playerLoc.getWorld();
-        if (world == null) return null;
-
-        for (int attempt = 0; attempt < 10; attempt++) {
-            double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
-            double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
-            Location spawnLoc = playerLoc.clone().add(xOffset, 0, zOffset);
-
-            if (plugin.isInsideClaim(spawnLoc)) {
-                continue;
-            }
-
-            Location surfaceLoc = findSurfaceLocation(spawnLoc);
-            if (surfaceLoc == null) continue;
-
-            Material blockType = surfaceLoc.getBlock().getRelative(0, -1, 0).getType();
-            if (blockType == Material.WATER || blockType == Material.LAVA) {
-                continue;
-            }
-
-            boolean shouldRespectLightLevel = !(isDayHordeSpawn || plugin.getConfig().getBoolean("apocalypse-settings.ignore-light-level", false));
-            if (shouldRespectLightLevel) {
-                int lightLevelSpawn = surfaceLoc.getBlock().getLightLevel();
-                int lightLevelBelow = surfaceLoc.clone().add(0, -1, 0).getBlock().getLightLevel();
-                int LIGHT_THRESHOLD = 8;
-                
-                if (lightLevelSpawn >= LIGHT_THRESHOLD || lightLevelBelow >= LIGHT_THRESHOLD) {
-                    continue;
-                }
-            }
-
-            return surfaceLoc;
-        }
-
-        return null;
-    }
-
-    /**
-     * Get current queue size
-     */
-    public int getQueueSize() {
-        return spawnQueue.size();
-    }
-    
-    /**
-     * Get max spawns per tick (for PerformanceWatchdog integration)
-     */
-    public int getMaxSpawnsPerTick() {
-        return maxSpawnsPerTick;
-    }
-    
     /**
      * Set max spawns per tick (for PerformanceWatchdog emergency throttling)
      */
     public void setMaxSpawnsPerTick(int maxSpawnsPerTick) {
-        this.maxSpawnsPerTick = Math.max(1, Math.min(maxSpawnsPerTick, 10)); // Clamp between 1 and 10
-    }
-
-    /**
-     * Spawn zombie with rising from grave effect
-     */
-    private Zombie spawnZombieWithRisingEffect(Location surfaceLoc, World world) {
-        // Spawn 1.5 blocks underground
-        Location undergroundLoc = surfaceLoc.clone().subtract(0, 1.5, 0);
-        
-        // Check if underground location is safe (not inside solid blocks)
-        if (undergroundLoc.getBlock().getType().isSolid()) {
-            // Fallback to surface spawn if underground is blocked
-            return (Zombie) world.spawnEntity(surfaceLoc, EntityType.ZOMBIE);
-        }
-        
-        // Spawn zombie underground
-        Zombie zombie = (Zombie) world.spawnEntity(undergroundLoc, EntityType.ZOMBIE);
-        
-        // Create rising effect over 2-3 ticks
-        new BukkitRunnable() {
-            int ticks = 0;
-            final Location targetLoc = surfaceLoc.clone();
-            
-            @Override
-            public void run() {
-                if (ticks >= 3 || zombie.isDead() || !zombie.isValid()) {
-                    this.cancel();
-                    return;
-                }
-                
-                // Move zombie up gradually
-                Location currentLoc = zombie.getLocation();
-                double newY = currentLoc.getY() + 0.5; // Rise 0.5 blocks per tick
-                zombie.teleport(new Location(currentLoc.getWorld(), currentLoc.getX(), newY, currentLoc.getZ(), currentLoc.getYaw(), currentLoc.getPitch()));
-                
-                // Spawn particles at ground level
-                if (ticks == 0) {
-                    // Initial spawn particles
-                    world.spawnParticle(Particle.SMOKE, targetLoc.add(0, 0.5, 0), 10, 0.3, 0.5, 0.3, 0.05);
-                    world.spawnParticle(Particle.HAPPY_VILLAGER, targetLoc.add(0, 0.5, 0), 5, 0.2, 0.3, 0.2, 0.1);
-                    world.playSound(targetLoc, Sound.BLOCK_GRAVEL_BREAK, 0.5f, 0.8f);
-                }
-                
-                ticks++;
-            }
-        }.runTaskTimer(plugin, 1L, 1L); // Start after 1 tick, then every tick
-        
-        return zombie;
-    }
-
-    /**
-     * Helper method to rotate a vector by a yaw angle
-     */
-    private Vector rotateVector(Vector vector, float yaw) {
-        double yawRad = Math.toRadians(-yaw);
-        double cos = Math.cos(yawRad);
-        double sin = Math.sin(yawRad);
-        
-        double x = vector.getX() * cos - vector.getZ() * sin;
-        double z = vector.getX() * sin + vector.getZ() * cos;
-        
-        return new Vector(x, vector.getY(), z);
+        this.maxSpawnsPerTick = Math.max(1, maxSpawnsPerTick); // Remove upper clamp
     }
 
     /**

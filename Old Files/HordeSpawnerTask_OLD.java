@@ -10,7 +10,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class HordeSpawnerTask extends BukkitRunnable {
 
     private final Zombpocalypse plugin;
-    private boolean hasLoggedDebug = false; // Throttle debug logs
 
     public HordeSpawnerTask(Zombpocalypse plugin) {
         this.plugin = plugin;
@@ -19,10 +18,8 @@ public class HordeSpawnerTask extends BukkitRunnable {
     @Override
     public void run() {
         try {
-            if (!hasLoggedDebug) {
-                plugin.debugLog("TASK: Running scheduled spawner check.");
-                hasLoggedDebug = true;
-            }
+            // Replaced info log with debugLog
+            plugin.debugLog("TASK: Running scheduled spawner check.");
 
             if (Bukkit.getWorlds().isEmpty()) {
                 plugin.getLogger().severe("TASK ERROR: No worlds are loaded! Skipping spawn attempt.");
@@ -40,17 +37,18 @@ public class HordeSpawnerTask extends BukkitRunnable {
                 double randomValue = ThreadLocalRandom.current().nextDouble();
 
                 if (randomValue > daySpawnChance) {
-                    return; // Removed debug spam
+                    plugin.debugLog("TASK: Skipped spawn due to daySpawnChance.");
+                    return;
                 }
                 isDayHordeSpawn = true;
             }
 
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (!plugin.isWorldEnabled(player.getWorld())) {
-                    continue;
+                    continue; // Silent skip
                 }
                 if (player.getGameMode().toString().equals("CREATIVE") || player.getGameMode().toString().equals("SPECTATOR")) {
-                    continue;
+                    continue; // Silent skip
                 }
 
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);

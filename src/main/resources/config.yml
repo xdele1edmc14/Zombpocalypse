@@ -89,7 +89,7 @@ scent-system:
   decay-amount: 1.2            # Scent lost every interval
   decay-interval-seconds: 4    # How often scent decays
   scent-scale: 15.0            # Higher = less impact on horde size
-  spawn-cap: 35                # Max zombies per horde
+  # spawn-cap removed - use performance.max-total-zombies instead
 
 # Base Zombie Stats
 zombie-settings:
@@ -130,7 +130,7 @@ bloodmoon:
 # Performance & Safety Guards
 performance:
   max-total-zombies: 300        # Maximum total zombies per world
-  spawns-per-tick: 5            # Zombies to spawn per tick (rate limiting)
+  spawns-per-tick: 100          # Zombies to spawn per tick (rate limiting) - increased to clear queue backlog
   tps-threshold: 18.5           # Pause spawning if TPS drops below this
   check-interval-ticks: 100     # How often to check performance (5 seconds)
 

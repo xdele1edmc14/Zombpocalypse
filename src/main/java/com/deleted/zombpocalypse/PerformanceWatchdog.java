@@ -23,9 +23,6 @@ public class PerformanceWatchdog {
     private BukkitTask lodTask;
     private HordeDirector hordeDirector;
     
-    private double tpsThreshold;
-    private int maxZombiesPerWorld;
-    private int cullAmount;
     private long checkIntervalTicks;
     
     // LOD (Level of Detail) system for distance-based AI throttling
@@ -43,9 +40,6 @@ public class PerformanceWatchdog {
     }
 
     private void loadConfig() {
-        tpsThreshold = plugin.getConfig().getDouble("performance.tps-threshold", 18.0);
-        maxZombiesPerWorld = plugin.getConfig().getInt("performance.max-zombies-per-world", 200);
-        cullAmount = plugin.getConfig().getInt("performance.cull-amount", 50);
         checkIntervalTicks = plugin.getConfig().getLong("performance.check-interval-ticks", 100L);
     }
 
@@ -97,9 +91,9 @@ public class PerformanceWatchdog {
         try {
             double currentTPS = getCurrentTPS();
             
-            // TPS-based emergency pause - if TPS drops below 18.5, pause all spawning
-            if (currentTPS < 18.5) {
-                plugin.debugLog("TPS dropped below 18.5: " + currentTPS + " - Pausing all spawning");
+            // DISABLE TPS-BASED PAUSING: Only pause if TPS is critically low (< 10)
+            if (currentTPS < 10.0) {
+                plugin.debugLog("CRITICAL TPS: " + currentTPS + " - Pausing all spawning");
                 pauseAllSpawning();
                 return;
             }
@@ -119,7 +113,7 @@ public class PerformanceWatchdog {
             }
             
             // Resume spawning if TPS is healthy
-            if (currentTPS >= 19.0) {
+            if (currentTPS >= 15.0) {
                 resumeSpawning();
             }
         } catch (Exception e) {
@@ -151,15 +145,17 @@ public class PerformanceWatchdog {
 
     private void pauseAllSpawning() {
         if (hordeDirector != null) {
-            hordeDirector.setMaxSpawnsPerTick(0); // Pause spawning
+            // KILL THE WATCHDOG INTERFERENCE: Comment out throttling
+            // hordeDirector.setMaxSpawnsPerTick(0); // Pause spawning
             hordeDirector.stop(); // Stop queue processor
         }
     }
     
     private void resumeSpawning() {
         if (hordeDirector != null) {
-            int spawnsPerTick = plugin.getConfig().getInt("performance.spawns-per-tick", 5);
-            hordeDirector.setMaxSpawnsPerTick(spawnsPerTick);
+            // KILL THE WATCHDOG INTERFERENCE: Comment out throttling
+            // int spawnsPerTick = plugin.getConfig().getInt("performance.spawns-per-tick", 5);
+            // hordeDirector.setMaxSpawnsPerTick(spawnsPerTick);
             hordeDirector.reload(); // Restart queue processor
         }
     }

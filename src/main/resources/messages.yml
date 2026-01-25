@@ -13,6 +13,7 @@ player-only: "&cThis command can only be used by players."
 
 # Commands
 commands:
+  no-permission: "&cYou don't have permission to use this command."
   help:
     header: "&4&l--- Zombpocalypse v1.3.3 ---"
     author: "&aBy xDele1ed"
@@ -32,7 +33,7 @@ commands:
   item:
     usage: "&cUsage: /zitem <item>"
     unknown: "&cUnknown item: {0}"
-    received: "&aYou received: {0}"
+    received: "&a[!] &7You received: &f{0}&7!"
 
 # Zombie Classes - Nametags
 zombies:
@@ -52,6 +53,8 @@ zombies:
 
 # Blood Moon
 bloodmoon:
+  start: "&4&lBLOOD MOON RISES! &cPrepare for battle!"
+  end: "&6The Blood Moon fades..."
   bossbar-title: "<gradient:dark_red:red>☠ BLOOD MOON ☠</gradient> <white>Remaining: {0}</white>"
   force-start: "<gradient:dark_red:red>&lBlood Moon has been FORCE STARTED!</gradient>"
   force-time-set: "&7(Time set to night to begin event immediately)"
