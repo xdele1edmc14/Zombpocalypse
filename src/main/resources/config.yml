@@ -127,6 +127,13 @@ bloodmoon:
     speed: 1.1
     horde-size: 1.5
 
+# Performance & Safety Guards
+performance:
+  max-total-zombies: 300        # Maximum total zombies per world
+  spawns-per-tick: 5            # Zombies to spawn per tick (rate limiting)
+  tps-threshold: 18.5           # Pause spawning if TPS drops below this
+  check-interval-ticks: 100     # How often to check performance (5 seconds)
+
 # Visuals
 visuals:
   use-nametags: true          # Color-coded names above zombies

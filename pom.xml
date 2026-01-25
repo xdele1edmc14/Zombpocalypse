@@ -6,7 +6,7 @@
 
     <groupId>com.deleted</groupId>
     <artifactId>zombpocalypse</artifactId>
-    <version>1.3.3-ALPHA</version>
+    <version>1.3.4-ALPHA</version>
     <packaging>jar</packaging>
 
     <name>Zombpocalypse</name>
@@ -40,7 +40,6 @@
             <version>1.21-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
-
         <!-- MiniMessage (Explicitly added to ensure availability for parsing) -->
         <dependency>
             <groupId>net.kyori</groupId>

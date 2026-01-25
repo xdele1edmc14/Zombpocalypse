@@ -113,12 +113,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         // --- Utils Setup ---
         utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
 
-        // --- Performance Watchdog Setup ---
-        performanceWatchdog = new PerformanceWatchdog(this);
-        performanceWatchdog.start();
-
         // --- Horde Director Setup ---
         hordeDirector = new HordeDirector(this, utils);
+
+        // --- Performance Watchdog Setup ---
+        performanceWatchdog = new PerformanceWatchdog(this);
+        performanceWatchdog.setHordeDirector(hordeDirector);
+        performanceWatchdog.start();
 
         getServer().getPluginManager().registerEvents(this, this);
 
@@ -323,13 +324,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     }
 
     @EventHandler
-    public void onPlayerJump(PlayerMoveEvent event) {
+    public void onPlayerMove(PlayerMoveEvent event) {
         if (!getConfig().getBoolean("scent-system.enabled", true)) return;
 
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // Detect jumping by checking if player's Y velocity is positive and they're on ground
+        // Detect jumping by checking Y velocity (more reliable than position delta)
         // Use cooldown to prevent multiple triggers from the same jump
         long currentTime = System.currentTimeMillis();
         Long lastJump = lastJumpTime.get(uuid);
@@ -338,12 +339,14 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             return; // Cooldown: only trigger once per 500ms
         }
 
+        // Check if player has positive Y velocity (jumping) and was on ground
         if (player.isOnGround() && event.getTo() != null && event.getFrom() != null) {
-            double deltaY = event.getTo().getY() - event.getFrom().getY();
-            if (deltaY > 0.1) { // Significant upward movement indicates a jump
+            double velocityY = player.getVelocity().getY();
+            if (velocityY > 0.3) { // Significant upward velocity indicates a jump
                 double jumpAdd = getConfig().getDouble("scent-system.jump-add", 0.5);
                 addPlayerScent(uuid, jumpAdd);
                 lastJumpTime.put(uuid, currentTime);
+                debugLog("Player " + player.getName() + " jumped, added " + jumpAdd + " scent");
             }
         }
     }
@@ -386,7 +389,10 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
                     for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
                         if (entity instanceof Zombie zombie) {
-                            utils.tickZombieAI(zombie);
+                            // LOD System: Only tick AI if zombie is close or LOD system allows it
+                            if (performanceWatchdog == null || performanceWatchdog.shouldTickZombieAI(zombie)) {
+                                utils.tickZombieAI(zombie);
+                            }
                         }
                     }
                 }
@@ -719,13 +725,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 player.sendMessage(messageManager.get("immunity.consumed"));
 
                 // Clear all zombies currently targeting this player
-                for (Entity entity : player.getWorld().getEntities()) {
+                for (Entity entity : player.getWorld().getEntitiesByClass(Zombie.class)) {
                     if (entity instanceof Zombie zombie) {
                         if (zombie.getTarget() != null && zombie.getTarget().equals(player)) {
                             zombie.setTarget(null);
                         }
                     }
-                };
+                }
 
                 if (item.getAmount() > 1) {
                     item.setAmount(item.getAmount() - 1);

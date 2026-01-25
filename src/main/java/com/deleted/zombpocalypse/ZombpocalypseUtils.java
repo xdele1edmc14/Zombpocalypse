@@ -27,7 +27,7 @@ public class ZombpocalypseUtils {
     public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("zombpocalypse", "last_rage");
 
     public enum ZombieType {
-        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, VETERAN;
+        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN;
     }
 
     private final Map<ZombieType, Double> spawnWeights = new HashMap<>();
@@ -44,7 +44,8 @@ public class ZombpocalypseUtils {
         spawnWeights.clear();
         totalWeight = 0.0;
         for (ZombieType type : ZombieType.values()) {
-            if (type == ZombieType.VETERAN) continue;
+            // VETERAN and BUILDER are not spawned randomly (VETERAN from kills, BUILDER special)
+            if (type == ZombieType.VETERAN || type == ZombieType.BUILDER) continue;
             double weight = plugin.getConfig().getDouble("zombie-classes.weights." + type.name(), 0.1);
             spawnWeights.put(type, weight);
             totalWeight += weight;
@@ -89,6 +90,7 @@ public class ZombpocalypseUtils {
             case PSYCHOPATH -> "§c⚔ Psychopath";
             case SCORCHED -> "§4🔥 Scorched";
             case TANK -> "§8⛨ Tank";
+            case BUILDER -> "§5🏗 Builder";
             case VETERAN -> "§e★ Veteran";
             default -> "§7Zombie";
         };
@@ -174,6 +176,13 @@ public class ZombpocalypseUtils {
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
             }
+            case BUILDER -> {
+                // Builder zombie - places blocks, slower movement
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 1.1);
+                zombie.setHealth(baseHealth * 1.1);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.9);
+            }
             case VETERAN -> {
                 // Elite zombie - transformed from kills
                 double attackBonus = plugin.getConfig().getDouble("zombie-classes.veteran.attack-bonus", 4.0);
@@ -198,12 +207,17 @@ public class ZombpocalypseUtils {
     public void tickZombieAI(Zombie zombie) {
         ZombieType type = getZombieType(zombie);
         if (type == null) return;
+        
+        // Clean switch expression for AI behaviors (Strategy Pattern-like approach)
         switch (type) {
             case NURSE -> tickNurseAI(zombie);
             case MINER -> tickMinerAI(zombie);
             case SPITTER -> tickSpitterAI(zombie);
             case SCORCHED -> tickScorchedAI(zombie);
             case PSYCHOPATH -> tickPsychopathAI(zombie);
+            case BUILDER -> tickBuilderAI(zombie);
+            // SWARMER, RUNNER, TANK, VETERAN have no special AI behaviors
+            default -> { /* No special AI for this type */ }
         }
     }
 
@@ -300,6 +314,45 @@ public class ZombpocalypseUtils {
                 psycho.getWorld().playSound(psycho.getLocation(), Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 1.5f);
                 psycho.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, psycho.getLocation().add(0, 2, 0), 5);
                 psycho.getPersistentDataContainer().set(LAST_RAGE_KEY, PersistentDataType.LONG, now);
+            }
+        }
+    }
+
+    private void tickBuilderAI(Zombie builder) {
+        LivingEntity target = builder.getTarget();
+        if (target == null) return;
+
+        long now = System.currentTimeMillis();
+        NamespacedKey lastBuildKey = new NamespacedKey("zombpocalypse", "last_build");
+        Long lastBuild = builder.getPersistentDataContainer().get(lastBuildKey, PersistentDataType.LONG);
+        int delay = plugin.getConfig().getInt("zombie-classes.builder.place-delay-ticks", 40) * 50;
+
+        if (lastBuild != null && (now - lastBuild) < delay) return;
+
+        // Builder places blocks to create paths/obstacles
+        Vector direction = target.getLocation().toVector().subtract(builder.getLocation().toVector()).normalize();
+        Block placeBlock = builder.getLocation().add(direction).getBlock();
+        Block belowBlock = placeBlock.getRelative(0, -1, 0);
+
+        // Only place if target block is air and below block is solid
+        if (placeBlock.getType() == Material.AIR && belowBlock.getType().isSolid()) {
+            if (!isInsideClaim(placeBlock.getLocation())) {
+                Material buildMaterial = Material.DIRT; // Default builder material
+                String configMaterial = plugin.getConfig().getString("zombie-classes.builder.block-type", "DIRT");
+                try {
+                    buildMaterial = Material.valueOf(configMaterial);
+                } catch (IllegalArgumentException e) {
+                    buildMaterial = Material.DIRT;
+                }
+
+                placeBlock.setType(buildMaterial);
+                builder.getWorld().playSound(builder.getLocation(), Sound.BLOCK_GRAVEL_PLACE, 1.0f, 1.0f);
+                builder.getWorld().spawnParticle(Particle.BLOCK, placeBlock.getLocation().add(0.5, 0.5, 0.5), 5, buildMaterial.createBlockData());
+                
+                // Track the block for cleanup
+                plugin.trackBuilderBlock(placeBlock.getLocation(), builder.getUniqueId());
+                
+                builder.getPersistentDataContainer().set(lastBuildKey, PersistentDataType.LONG, now);
             }
         }
     }
