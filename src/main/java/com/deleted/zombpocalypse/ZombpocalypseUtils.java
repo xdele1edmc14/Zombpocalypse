@@ -9,6 +9,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -25,13 +26,17 @@ public class ZombpocalypseUtils {
     public static final NamespacedKey LAST_BREAK_KEY = new NamespacedKey("zombpocalypse", "last_break");
     public static final NamespacedKey LAST_SPIT_KEY = new NamespacedKey("zombpocalypse", "last_spit");
     public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("zombpocalypse", "last_rage");
+    public static final NamespacedKey LAST_WEB_KEY = new NamespacedKey("zombpocalypse", "last_web");
+    public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("zombpocalypse", "burster_primed");
 
     public enum ZombieType {
-        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN;
+        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST;
     }
 
     private final Map<ZombieType, Double> spawnWeights = new HashMap<>();
     private double totalWeight = 0.0;
+
+    private final Map<UUID, BukkitRunnable> activeBursterFuses = new HashMap<>();
 
     public ZombpocalypseUtils(Zombpocalypse plugin, GriefPrevention gp, boolean gpEnabled) {
         this.plugin = plugin;
@@ -92,6 +97,9 @@ public class ZombpocalypseUtils {
             case TANK -> "§8⛨ Tank";
             case BUILDER -> "§5🏗 Builder";
             case VETERAN -> "§e★ Veteran";
+            case WEBBER -> "§8🕸 Webber";
+            case BURSTER -> "§c💣 Burster";
+            case FROST -> "§b❄ Frost";
             default -> "§7Zombie";
         };
     }
@@ -191,6 +199,36 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth + healthAdd);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 1.1);
+            }
+            case WEBBER -> {
+                // Webber - places cobwebs on hit, holds string in off-hand
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                zombie.getEquipment().setItemInOffHand(new ItemStack(Material.STRING));
+            }
+            case BURSTER -> {
+                // Burster - explodes when close, lower HP
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.8);
+                zombie.setHealth(baseHealth * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.5);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.6);
+            }
+            case FROST -> {
+                // Frost - slows targets on hit, wears aqua chestplate
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                // Visual: aqua leather chestplate
+                ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
+                chestplate.getItemMeta();
+                if (chestplate.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
+                    meta.setColor(org.bukkit.Color.AQUA);
+                    chestplate.setItemMeta(meta);
+                }
+                zombie.getEquipment().setChestplate(chestplate);
             }
         }
     }
@@ -299,7 +337,9 @@ public class ZombpocalypseUtils {
         }
         for (Entity e : scorched.getNearbyEntities(2, 2, 2)) {
             if (e instanceof Player p && p.getGameMode() == GameMode.SURVIVAL) {
-                p.setFireTicks(40);
+                // Cosmetic flame particles instead of actual fire
+                p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 0.5, 0), 8, 0.3, 0.6, 0.3, 0.05);
+                p.getWorld().spawnParticle(Particle.SMOKE, p.getLocation().add(0, 0.5, 0), 4, 0.2, 0.4, 0.2, 0.02);
             }
         }
     }
@@ -376,4 +416,122 @@ public class ZombpocalypseUtils {
         l.getWorld().spawnParticle(Particle.ITEM_SLIME, l.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.1);
         l.getWorld().playSound(l.getLocation(), Sound.ENTITY_GENERIC_SPLASH, 1.0f, 1.0f);
     }
+
+    // === WEBBER EVENT HANDLERS ===
+    
+    public void handleWebberHit(Zombie webber, Player victim) {
+        long now = System.currentTimeMillis();
+        Long lastWeb = webber.getPersistentDataContainer().get(LAST_WEB_KEY, PersistentDataType.LONG);
+        
+        // Cooldown: once every 7 seconds per zombie
+        if (lastWeb != null && (now - lastWeb) < 7000) return;
+
+         int webCount = plugin.getConfig().getInt("zombie-classes.webber.web_count", 3);
+         long cleanupDelay = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 40L);
+
+         Block baseBlock = victim.getLocation().getBlock();
+         Set<Block> placed = new HashSet<>();
+         int maxAttempts = Math.max(1, webCount) * 10;
+         int attempts = 0;
+
+         while (placed.size() < webCount && attempts < maxAttempts) {
+             int dx = ThreadLocalRandom.current().nextInt(-1, 2);
+             int dz = ThreadLocalRandom.current().nextInt(-1, 2);
+             Block block = baseBlock.getRelative(dx, 0, dz);
+             if (block.getType() == Material.AIR) {
+                 block.setType(Material.COBWEB);
+                 placed.add(block);
+             }
+             attempts++;
+         }
+
+         List<Block> webBlocks = new ArrayList<>(placed);
+         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+             for (Block block : webBlocks) {
+                 if (block.getType() == Material.COBWEB) {
+                     block.setType(Material.AIR);
+                 }
+             }
+         }, cleanupDelay);
+
+        webber.getPersistentDataContainer().set(LAST_WEB_KEY, PersistentDataType.LONG, now);
+    }
+
+    // === BURSTER EVENT HANDLERS ===
+    
+    public void handleBursterTarget(Zombie burster, Player target) {
+        double radius = plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0);
+        if (burster.getLocation().distanceSquared(target.getLocation()) > radius * radius) return;
+
+        UUID id = burster.getUniqueId();
+        if (activeBursterFuses.containsKey(id)) return;
+        if (burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.BYTE)
+                || burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.LONG)) {
+            return;
+        }
+
+        int fuseTicks = plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30);
+        float power = (float) plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0);
+        boolean breakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
+
+        burster.setAI(false);
+        burster.setVelocity(new Vector(0, 0, 0));
+        burster.getPersistentDataContainer().set(BURSTER_PRIMED_KEY, PersistentDataType.BYTE, (byte) 1);
+        burster.getWorld().playSound(burster.getLocation(), Sound.ENTITY_CREEPER_PRIMED, 1.0f, 1.0f);
+
+        BukkitRunnable fuseTask = new BukkitRunnable() {
+            int elapsed = 0;
+
+            @Override
+            public void run() {
+                if (burster.isDead() || !burster.isValid()) {
+                    activeBursterFuses.remove(id);
+                    cancel();
+                    return;
+                }
+
+                burster.setVelocity(new Vector(0, 0, 0));
+
+                if (elapsed % 5 == 0) {
+                    burster.setGlowing(!burster.isGlowing());
+                }
+
+                elapsed++;
+                if (elapsed >= fuseTicks) {
+                    Location loc = burster.getLocation().clone();
+                    World world = burster.getWorld();
+
+                    activeBursterFuses.remove(id);
+                    burster.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
+                    burster.remove();
+                    world.createExplosion(loc, power, false, breakBlocks);
+
+                    cancel();
+                }
+            }
+        };
+
+        activeBursterFuses.put(id, fuseTask);
+        fuseTask.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    // === FROST EVENT HANDLERS ===
+    
+    public void handleFrostHit(Zombie frost, Player victim) {
+        int durationTicks = plugin.getConfig().getInt("zombie-classes.frost.duration_ticks", 100);
+        int level = plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2);
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, Math.max(0, level - 1)));
+    }
+
+     public void cancelBursterFuse(Zombie burster) {
+         BukkitRunnable task = activeBursterFuses.remove(burster.getUniqueId());
+         if (task != null) {
+             task.cancel();
+         }
+         burster.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
+         if (burster.isValid() && !burster.isDead()) {
+             burster.setGlowing(false);
+             burster.setAI(true);
+         }
+     }
 }

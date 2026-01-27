@@ -21,7 +21,6 @@ public class PerformanceWatchdog {
     private final Zombpocalypse plugin;
     private BukkitTask watchdogTask;
     private BukkitTask lodTask;
-    private HordeDirector hordeDirector;
     
     private long checkIntervalTicks;
     
@@ -33,10 +32,6 @@ public class PerformanceWatchdog {
     public PerformanceWatchdog(Zombpocalypse plugin) {
         this.plugin = plugin;
         loadConfig();
-    }
-    
-    public void setHordeDirector(HordeDirector hordeDirector) {
-        this.hordeDirector = hordeDirector;
     }
 
     private void loadConfig() {
@@ -144,20 +139,11 @@ public class PerformanceWatchdog {
     }
 
     private void pauseAllSpawning() {
-        if (hordeDirector != null) {
-            // KILL THE WATCHDOG INTERFERENCE: Comment out throttling
-            // hordeDirector.setMaxSpawnsPerTick(0); // Pause spawning
-            hordeDirector.stop(); // Stop queue processor
-        }
+        // no-op
     }
     
     private void resumeSpawning() {
-        if (hordeDirector != null) {
-            // KILL THE WATCHDOG INTERFERENCE: Comment out throttling
-            // int spawnsPerTick = plugin.getConfig().getInt("performance.spawns-per-tick", 5);
-            // hordeDirector.setMaxSpawnsPerTick(spawnsPerTick);
-            hordeDirector.reload(); // Restart queue processor
-        }
+        // no-op
     }
 
     private void cullZombiesInWorld(World world, int amount) {

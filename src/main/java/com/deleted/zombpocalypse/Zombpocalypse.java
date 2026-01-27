@@ -3,6 +3,9 @@ package com.deleted.zombpocalypse;
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
@@ -33,9 +36,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     private List<String> enabledWorlds;
     private ZombpocalypseUtils utils;
+    private UndeadSpawner undeadSpawner;
     private MessageManager messageManager;
     private PerformanceWatchdog performanceWatchdog;
-    private HordeDirector hordeDirector;
 
     // --- PERSISTENCE FIELDS ---
     private File dataFile;
@@ -112,13 +115,10 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
         // --- Utils Setup ---
         utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
-
-        // --- Horde Director Setup ---
-        hordeDirector = new HordeDirector(this, utils);
+        undeadSpawner = new UndeadSpawner(this, utils);
 
         // --- Performance Watchdog Setup ---
         performanceWatchdog = new PerformanceWatchdog(this);
-        performanceWatchdog.setHordeDirector(hordeDirector);
         performanceWatchdog.start();
 
         getServer().getPluginManager().registerEvents(this, this);
@@ -151,10 +151,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
         if (performanceWatchdog != null) {
             performanceWatchdog.stop();
-        }
-
-        if (hordeDirector != null) {
-            hordeDirector.stop();
         }
 
         for (BossBar bar : immunityBossBars.values()) {
@@ -353,6 +349,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity() instanceof Zombie zombie) {
+            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            if (type == ZombpocalypseUtils.ZombieType.BURSTER) {
+                utils.cancelBursterFuse(zombie);
+            }
+        }
+
         if (!getConfig().getBoolean("scent-system.enabled", true)) return;
 
         Player killer = event.getEntity().getKiller();
@@ -662,17 +665,44 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     @EventHandler
     public void onEntityTarget(EntityTargetLivingEntityEvent event) {
-        if (!zombieGutsEnabled) return;
-
         EntityType entityType = event.getEntity().getType();
 
         if ((entityType == EntityType.ZOMBIE || entityType == EntityType.ZOMBIE_VILLAGER)
                 && event.getTarget() instanceof Player player) {
 
-            if (immunePlayers.contains(player.getUniqueId())) {
+            if (zombieGutsEnabled && immunePlayers.contains(player.getUniqueId())) {
                 event.setCancelled(true);
                 if (event.getEntity() instanceof Zombie zombie) {
                     zombie.setTarget(null);
+                }
+                return;
+            }
+            
+            // Handle BURSTER target event
+            if (event.getEntity() instanceof Zombie zombie) {
+                ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+                if (type == ZombpocalypseUtils.ZombieType.BURSTER) {
+                    utils.handleBursterTarget(zombie, player);
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Zombie zombie && event.getEntity() instanceof Player player) {
+            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            if (type == null) return;
+            
+            switch (type) {
+                case WEBBER -> {
+                    utils.handleWebberHit(zombie, player);
+                }
+                case FROST -> {
+                    utils.handleFrostHit(zombie, player);
+                }
+                default -> {
+                    // No special handling for other types
                 }
             }
         }
@@ -811,10 +841,26 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         startAITickTask();
 
         getLogger().info("TASK START: Spawner Task @ " + rate + " ticks.");
-        new HordeSpawnerTask(this).runTaskTimer(this, 0L, rate);
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (World world : Bukkit.getWorlds()) {
+                    if (!isWorldEnabled(world)) continue;
+
+                    for (Player player : world.getPlayers()) {
+                        spawnZombiesNearPlayer(player, false);
+                    }
+                }
+            }
+        }.runTaskTimer(this, 0L, rate);
     }
 
     void spawnZombiesNearPlayer(Player player, boolean isDayHordeSpawn) {
+        // Guard clause: only spawn for SURVIVAL mode players, prevent Elytra spawns
+        if (player.getGameMode() != GameMode.SURVIVAL || player.isGliding() || player.isFlying()) {
+            return;
+        }
+        
         int baseAmount = getConfig().getInt("apocalypse-settings.base-horde-size", 6);
         int variance = getConfig().getInt("apocalypse-settings.horde-variance", 4);
 
@@ -844,27 +890,28 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
         debugLog("Attempting to spawn horde of size: " + finalHordeSize + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
-        // BYPASS THE QUEUE: Spawn zombies IMMEDIATELY in a loop like /zspawn command
-        if (hordeDirector != null) {
-            int spawnRadius = getConfig().getInt("apocalypse-settings.spawn-radius", 35);
-            
-            for (int i = 0; i < finalHordeSize; i++) {
-                // Calculate location like /zspawn command
-                double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
-                double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
-                Location spawnLoc = player.getLocation().clone().add(xOffset, 1, zOffset);
-                
-                // Check if inside claim
-                if (isInsideClaim(spawnLoc)) {
-                    continue;
-                }
-                
-                // Spawn zombie immediately
-                Zombie zombie = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
-                if (zombie != null) {
-                    utils.assignZombieType(zombie);
-                }
+        int spawnRadius = getConfig().getInt("apocalypse-settings.spawn-radius", 35);
+
+        for (int i = 0; i < finalHordeSize; i++) {
+            // Calculate location like /zspawn command
+            double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+            double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+            Location spawnLoc = player.getLocation().clone().add(xOffset, 0, zOffset);
+
+            Location surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
+            if (surface == null) {
+                continue;
             }
+
+            // Check if inside claim
+            if (isInsideClaim(surface)) {
+                continue;
+            }
+
+            Block surfaceBlock = surface.getBlock().getRelative(BlockFace.DOWN);
+            BlockData surfaceData = surfaceBlock.getBlockData();
+            long startDelayTicks = i % 5L;
+            undeadSpawner.trySpawnUndeadRise(surface, surfaceBlock, surfaceData, startDelayTicks);
         }
     }
 
@@ -886,12 +933,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 utils.reloadWeights();
                 if (performanceWatchdog != null) {
                     performanceWatchdog.reload();
-                }
-                if (hordeDirector != null) {
-                    hordeDirector.reload();
-                    // EMERGENCY FLUSH: Clear the dead queue
-                    hordeDirector.emergencyFlushQueue();
-                    sender.sendMessage("§aEmergency queue flush completed");
                 }
                 startSpawnerTask();
                 startImmunityBossBarTask();
