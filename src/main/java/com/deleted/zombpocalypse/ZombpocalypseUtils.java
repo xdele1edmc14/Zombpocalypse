@@ -30,7 +30,7 @@ public class ZombpocalypseUtils {
     public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("zombpocalypse", "burster_primed");
 
     public enum ZombieType {
-        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST;
+        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
     }
 
     private final Map<ZombieType, Double> spawnWeights = new HashMap<>();
@@ -87,6 +87,7 @@ public class ZombpocalypseUtils {
 
     private String getZombieDisplayName(ZombieType type) {
         return switch (type) {
+            case NORMAL -> "§8Zombie";
             case SWARMER -> "§7⚔ Swarmer";
             case MINER -> "§6⛏ Miner";
             case NURSE -> "§d❤ Nurse";
@@ -111,18 +112,31 @@ public class ZombpocalypseUtils {
 
         boolean isBloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
         if (isBloodMoon) {
-            baseHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 1.5);
-            baseDamage *= plugin.getConfig().getDouble("bloodmoon.multipliers.damage", 1.3);
-            baseSpeed *= plugin.getConfig().getDouble("bloodmoon.multipliers.speed", 1.1);
+            baseHealth *= plugin.bmHealthMult;
+            baseDamage *= plugin.bmDamageMult;
+            baseSpeed *= plugin.bmSpeedMult;
         }
 
         switch (type) {
+            case NORMAL -> {
+                // Basic vanilla zombie - no special effects
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
+                // NORMAL zombies don't get fire immunity (they can burn normally)
+            }
             case SWARMER -> {
                 // Basic zombie - standard stats
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
+                zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
             }
             case RUNNER -> {
                 // Fast but fragile
@@ -138,7 +152,7 @@ public class ZombpocalypseUtils {
                 double tankHealth = plugin.getConfig().getDouble("zombie-classes.tank.health", 50.0);
                 double knockbackResist = plugin.getConfig().getDouble("zombie-classes.tank.knockback-resistance", 0.6);
                 if (isBloodMoon) {
-                    tankHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 1.5);
+                    tankHealth *= plugin.bmHealthMult;
                 }
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, tankHealth);
                 zombie.setHealth(tankHealth);
@@ -174,7 +188,11 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Proper fire immunity for scorched zombies
                 zombie.setFireTicks(Integer.MAX_VALUE); // Immune to fire
+                // CRITICAL FIX: Add fire resistance potion effect to prevent self-damage
+                zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
             }
             case PSYCHOPATH -> {
                 // Berserker - higher damage, speed bonus when enraged
@@ -221,7 +239,8 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
-                // Visual: aqua leather chestplate
+                
+                // CRITICAL FIX: Only frost zombies get blue leather chestplate
                 ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
                 chestplate.getItemMeta();
                 if (chestplate.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
@@ -472,47 +491,49 @@ public class ZombpocalypseUtils {
 
         int fuseTicks = plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30);
         float power = (float) plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0);
-        boolean breakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
-
-        burster.setAI(false);
-        burster.setVelocity(new Vector(0, 0, 0));
-        burster.getPersistentDataContainer().set(BURSTER_PRIMED_KEY, PersistentDataType.BYTE, (byte) 1);
-        burster.getWorld().playSound(burster.getLocation(), Sound.ENTITY_CREEPER_PRIMED, 1.0f, 1.0f);
-
-        BukkitRunnable fuseTask = new BukkitRunnable() {
-            int elapsed = 0;
-
+        
+        // CRITICAL FIX: Add burster fuse to tracking map
+        BukkitRunnable fuse = new BukkitRunnable() {
+            private int ticks = 0;
+            
             @Override
             public void run() {
                 if (burster.isDead() || !burster.isValid()) {
+                    this.cancel();
                     activeBursterFuses.remove(id);
-                    cancel();
                     return;
                 }
-
-                burster.setVelocity(new Vector(0, 0, 0));
-
-                if (elapsed % 5 == 0) {
-                    burster.setGlowing(!burster.isGlowing());
-                }
-
-                elapsed++;
-                if (elapsed >= fuseTicks) {
-                    Location loc = burster.getLocation().clone();
-                    World world = burster.getWorld();
-
+                
+                ticks++;
+                
+                if (ticks >= fuseTicks) {
+                    // Explode
+                    Location loc = burster.getLocation();
+                    burster.remove(); // Remove entity before explosion
+                    loc.getWorld().createExplosion(loc, power, false, false);
+                    this.cancel();
                     activeBursterFuses.remove(id);
-                    burster.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
-                    burster.remove();
-                    world.createExplosion(loc, power, false, breakBlocks);
-
-                    cancel();
+                } else {
+                    // Visual effects
+                    burster.setGlowing(true);
+                    if (ticks % 5 == 0) {
+                        burster.setGlowing(false);
+                    }
                 }
             }
         };
-
-        activeBursterFuses.put(id, fuseTask);
-        fuseTask.runTaskTimer(plugin, 0L, 1L);
+        
+        activeBursterFuses.put(id, fuse);
+        fuse.runTaskTimer(plugin, 0, 1);
+    }
+    
+    // CRITICAL FIX: Add method to cancel burster fuse
+    public void cancelBursterFuse(Zombie burster) {
+        UUID id = burster.getUniqueId();
+        BukkitRunnable fuse = activeBursterFuses.remove(id);
+        if (fuse != null) {
+            fuse.cancel();
+        }
     }
 
     // === FROST EVENT HANDLERS ===
@@ -522,16 +543,4 @@ public class ZombpocalypseUtils {
         int level = plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, Math.max(0, level - 1)));
     }
-
-     public void cancelBursterFuse(Zombie burster) {
-         BukkitRunnable task = activeBursterFuses.remove(burster.getUniqueId());
-         if (task != null) {
-             task.cancel();
-         }
-         burster.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
-         if (burster.isValid() && !burster.isDead()) {
-             burster.setGlowing(false);
-             burster.setAI(true);
-         }
-     }
 }

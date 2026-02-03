@@ -127,6 +127,7 @@ apocalypse-settings:
   day-spawn-chance: 0.02       # 2% chance to spawn during day
   ignore-light-level: false    # If true, spawns in daylight
   use-mob-blacklist: true      # If true, prevents listed mobs
+  rising-animation: true        # Enable/disable zombie rise animation from ground
   mob-list:                    # Mobs to block (or allow if blacklist=false)
     - SKELETON
     - WITHER_SKELETON
@@ -143,6 +144,8 @@ bloodmoon:
     damage: 1.3
     speed: 1.1
     horde-size: 1.5
+  # CRITICAL FIX: Add force blood moon configuration
+  force-duration-minutes: 10  # Duration for /forcebloodmoon command
 
 # Performance & Safety Guards
 performance:
