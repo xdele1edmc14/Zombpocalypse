@@ -1253,9 +1253,23 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 sender.sendMessage(messageManager.get("no-permission"));
                 return true;
             }
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage(messageManager.get("player-only"));
-                return true;
+            
+            Player targetPlayer = null;
+            
+            // Check if command is run from console with player parameter
+            if (!(sender instanceof Player)) {
+                if (args.length >= 2) {
+                    targetPlayer = Bukkit.getPlayer(args[1]);
+                    if (targetPlayer == null) {
+                        sender.sendMessage(messageManager.getWithPrefix("player-not-found", args[1]));
+                        return true;
+                    }
+                } else {
+                    sender.sendMessage(messageManager.getWithPrefix("commands.item.usage"));
+                    return true;
+                }
+            } else {
+                targetPlayer = (Player) sender;
             }
 
             if (args.length >= 1 && args[0].equalsIgnoreCase("zombie_guts") && zombieGutsEnabled) {
@@ -1264,11 +1278,16 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 meta.setDisplayName(messageManager.get("immunity.item-name"));
                 meta.setLore(messageManager.getList("immunity.item-lore"));
                 guts.setItemMeta(meta);
-                player.getInventory().addItem(guts);
-                player.sendMessage(messageManager.getWithPrefix("item.received", messageManager.get("immunity.item-name")));
+                targetPlayer.getInventory().addItem(guts);
+                
+                if (sender instanceof Player) {
+                    targetPlayer.sendMessage(messageManager.getWithPrefix("commands.item.received", messageManager.get("immunity.item-name")));
+                } else {
+                    sender.sendMessage(messageManager.getWithPrefix("commands.item.given", targetPlayer.getName(), messageManager.get("immunity.item-name")));
+                }
                 return true;
             }
-            sender.sendMessage(messageManager.getWithPrefix("item.unknown", args.length > 0 ? args[0] : "none"));
+            sender.sendMessage(messageManager.getWithPrefix("commands.item.unknown", args.length > 0 ? args[0] : "none"));
             return true;
         }
 

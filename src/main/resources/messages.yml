@@ -10,6 +10,7 @@ reload-success: "<gradient:green:aqua>Configuration and language files reloaded!
 reload-error: "&cError reloading: {0}"
 no-permission: "&cYou don't have permission to use this command."
 player-only: "&cThis command can only be used by players."
+player-not-found: "&cPlayer not found: {0}"
 
 # Commands
 commands:
@@ -31,9 +32,10 @@ commands:
     blocked-claim: "&cCannot spawn in protected area."
 
   item:
-    usage: "&cUsage: /zitem <item>"
+    usage: "&cUsage: /zitem <item> [player]"
     unknown: "&cUnknown item: {0}"
     received: "&a[!] &7You received: &f{0}&7!"
+    given: "&a[!] &7Gave &f{1}&7 to &f{0}&7!"
 
 # Zombie Classes - Nametags
 zombies:
