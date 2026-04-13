@@ -18,14 +18,17 @@ zombie-classes:
 
   # Spawn weights (must total ~1.0) - higher = more common
   weights:
-    SWARMER: 0.40      # 40% chance - basic zombie
-    RUNNER: 0.20       # 20% chance - fast, less HP
-    MINER: 0.12        # 12% chance - breaks blocks
-    NURSE: 0.08        # 8% chanAce - heals zombies
-    SPITTER: 0.08      # 8% chance - ranged poison
-    SCORCHED: 0.05     # 5% chance - fire zombie
-    PSYCHOPATH: 0.04   # 4% chance - berserker
+    SWARMER: 0.35      # 35% chance - basic zombie
+    RUNNER: 0.18       # 18% chance - fast, less HP
+    MINER: 0.10        # 10% chance - breaks blocks
+    NURSE: 0.07        # 7% chance - heals zombies
+    SPITTER: 0.07      # 7% chance - ranged poison
+    SCORCHED: 0.04     # 4% chance - fire zombie
+    PSYCHOPATH: 0.03   # 3% chance - berserker
     TANK: 0.03         # 3% chance - high HP, armored
+    WEBBER: 0.05       # 5% chance - places cobwebs
+    BURSTER: 0.04      # 4% chance - explodes when close
+    FROST: 0.04        # 4% chance - slows targets
 
   miner:
     enabled: true
@@ -81,6 +84,20 @@ zombie-classes:
     rage-cooldown-seconds: 25  # Time between charges
     bleed-duration-seconds: 3
 
+  frost:
+    slowness_level: 2
+    duration_ticks: 100
+
+  webber:
+    web_count: 3
+    cleanup_delay: 40
+
+  burster:
+    fuse_ticks: 30
+    radius: 3.0
+    power: 3.0
+    break_blocks: true
+
 # Scent Tracking - Your activity attracts bigger hordes
 scent-system:
   enabled: true
@@ -89,7 +106,7 @@ scent-system:
   decay-amount: 1.2            # Scent lost every interval
   decay-interval-seconds: 4    # How often scent decays
   scent-scale: 15.0            # Higher = less impact on horde size
-  spawn-cap: 35                # Max zombies per horde
+  # spawn-cap removed - use performance.max-total-zombies instead
 
 # Base Zombie Stats
 zombie-settings:
@@ -110,6 +127,7 @@ apocalypse-settings:
   day-spawn-chance: 0.02       # 2% chance to spawn during day
   ignore-light-level: false    # If true, spawns in daylight
   use-mob-blacklist: true      # If true, prevents listed mobs
+  rising-animation: true        # Enable/disable zombie rise animation from ground
   mob-list:                    # Mobs to block (or allow if blacklist=false)
     - SKELETON
     - WITHER_SKELETON
@@ -126,6 +144,15 @@ bloodmoon:
     damage: 1.3
     speed: 1.1
     horde-size: 1.5
+  # CRITICAL FIX: Add force blood moon configuration
+  force-duration-minutes: 10  # Duration for /forcebloodmoon command
+
+# Performance & Safety Guards
+performance:
+  max-total-zombies: 300        # Maximum total zombies per world
+  spawns-per-tick: 100          # Zombies to spawn per tick (rate limiting) - increased to clear queue backlog
+  tps-threshold: 18.5           # Pause spawning if TPS drops below this
+  check-interval-ticks: 100     # How often to check performance (5 seconds)
 
 # Visuals
 visuals:

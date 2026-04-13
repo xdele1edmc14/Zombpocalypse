@@ -1,5 +1,5 @@
 name: Zombpocalypse
-version: 1.3.3-ALPHA
+version: 1.3.4-ALPHA
 main: com.deleted.zombpocalypse.Zombpocalypse
 api-version: 1.21
 authors: [xDele1ed]
@@ -20,6 +20,10 @@ commands:
     description: Forces a Blood Moon to start immediately.
     permission: zombpocalypse.admin
     aliases: [fbm]
+  stopbloodmoon:
+    description: Stops an active Blood Moon.
+    permission: zombpocalypse.admin
+    aliases: [sbm]
   zspawn:
     description: Spawns zombies of specific type or horde.
     usage: /zspawn <type|horde> [count] [radius]

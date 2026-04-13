@@ -9,6 +9,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -25,13 +26,17 @@ public class ZombpocalypseUtils {
     public static final NamespacedKey LAST_BREAK_KEY = new NamespacedKey("zombpocalypse", "last_break");
     public static final NamespacedKey LAST_SPIT_KEY = new NamespacedKey("zombpocalypse", "last_spit");
     public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("zombpocalypse", "last_rage");
+    public static final NamespacedKey LAST_WEB_KEY = new NamespacedKey("zombpocalypse", "last_web");
+    public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("zombpocalypse", "burster_primed");
 
     public enum ZombieType {
-        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, VETERAN;
+        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
     }
 
     private final Map<ZombieType, Double> spawnWeights = new HashMap<>();
     private double totalWeight = 0.0;
+
+    private final Map<UUID, BukkitRunnable> activeBursterFuses = new HashMap<>();
 
     public ZombpocalypseUtils(Zombpocalypse plugin, GriefPrevention gp, boolean gpEnabled) {
         this.plugin = plugin;
@@ -44,7 +49,8 @@ public class ZombpocalypseUtils {
         spawnWeights.clear();
         totalWeight = 0.0;
         for (ZombieType type : ZombieType.values()) {
-            if (type == ZombieType.VETERAN) continue;
+            // VETERAN and BUILDER are not spawned randomly (VETERAN from kills, BUILDER special)
+            if (type == ZombieType.VETERAN || type == ZombieType.BUILDER) continue;
             double weight = plugin.getConfig().getDouble("zombie-classes.weights." + type.name(), 0.1);
             spawnWeights.put(type, weight);
             totalWeight += weight;
@@ -81,6 +87,7 @@ public class ZombpocalypseUtils {
 
     private String getZombieDisplayName(ZombieType type) {
         return switch (type) {
+            case NORMAL -> "§8Zombie";
             case SWARMER -> "§7⚔ Swarmer";
             case MINER -> "§6⛏ Miner";
             case NURSE -> "§d❤ Nurse";
@@ -89,39 +96,158 @@ public class ZombpocalypseUtils {
             case PSYCHOPATH -> "§c⚔ Psychopath";
             case SCORCHED -> "§4🔥 Scorched";
             case TANK -> "§8⛨ Tank";
+            case BUILDER -> "§5🏗 Builder";
             case VETERAN -> "§e★ Veteran";
+            case WEBBER -> "§8🕸 Webber";
+            case BURSTER -> "§c💣 Burster";
+            case FROST -> "§b❄ Frost";
             default -> "§7Zombie";
         };
     }
 
     private void applyZombieStats(Zombie zombie, ZombieType type) {
-        double baseHealth = plugin.getConfig().getDouble("zombie-settings.health", 30.0);
-        double baseDamage = plugin.getConfig().getDouble("zombie-settings.damage", 8.0);
-        double baseSpeed = plugin.getConfig().getDouble("zombie-settings.speed", 0.35);
+        double baseHealth = plugin.getConfig().getDouble("zombie-settings.health", 25.0);
+        double baseDamage = plugin.getConfig().getDouble("zombie-settings.damage", 6.0);
+        double baseSpeed = plugin.getConfig().getDouble("zombie-settings.speed", 0.32);
 
-        if (plugin.isBloodMoonActive(zombie.getWorld())) {
-            baseHealth *= plugin.getConfig().getDouble("bloodmoon.multipliers.health", 2.0);
-            baseDamage *= plugin.getConfig().getDouble("bloodmoon.multipliers.damage", 1.5);
-            baseSpeed *= plugin.getConfig().getDouble("bloodmoon.multipliers.speed", 1.2);
+        boolean isBloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
+        if (isBloodMoon) {
+            baseHealth *= plugin.bmHealthMult;
+            baseDamage *= plugin.bmDamageMult;
+            baseSpeed *= plugin.bmSpeedMult;
         }
 
         switch (type) {
-            case RUNNER -> {
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, 0.45);
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.7);
-                zombie.setHealth(baseHealth * 0.7);
-            }
-            case TANK -> {
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, 60.0);
-                zombie.setHealth(60.0);
-                setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, 0.9);
-                zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
-            }
-            default -> {
+            case NORMAL -> {
+                // Basic vanilla zombie - no special effects
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
+                // NORMAL zombies don't get fire immunity (they can burn normally)
+            }
+            case SWARMER -> {
+                // Basic zombie - standard stats
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
+                zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
+            }
+            case RUNNER -> {
+                // Fast but fragile
+                double healthMult = plugin.getConfig().getDouble("zombie-classes.runner.health-multiplier", 0.75);
+                double runnerSpeed = plugin.getConfig().getDouble("zombie-classes.runner.speed", 0.38);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * healthMult);
+                zombie.setHealth(baseHealth * healthMult);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.9);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, runnerSpeed);
+            }
+            case TANK -> {
+                // High HP, armored, knockback resistant
+                double tankHealth = plugin.getConfig().getDouble("zombie-classes.tank.health", 50.0);
+                double knockbackResist = plugin.getConfig().getDouble("zombie-classes.tank.knockback-resistance", 0.6);
+                if (isBloodMoon) {
+                    tankHealth *= plugin.bmHealthMult;
+                }
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, tankHealth);
+                zombie.setHealth(tankHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 1.2);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.85);
+                setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, knockbackResist);
+                zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
+            }
+            case MINER -> {
+                // Standard stats, focused on block breaking
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case NURSE -> {
+                // Support zombie - lower damage, standard HP
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.7);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case SPITTER -> {
+                // Ranged attacker - lower HP, standard speed
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.85);
+                zombie.setHealth(baseHealth * 0.85);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case SCORCHED -> {
+                // Fire zombie - standard stats with fire aura
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Proper fire immunity for scorched zombies
+                zombie.setFireTicks(Integer.MAX_VALUE); // Immune to fire
+                // CRITICAL FIX: Add fire resistance potion effect to prevent self-damage
+                zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
+            }
+            case PSYCHOPATH -> {
+                // Berserker - higher damage, speed bonus when enraged
+                double attackBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.attack-bonus", 2.0);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+            }
+            case BUILDER -> {
+                // Builder zombie - places blocks, slower movement
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 1.1);
+                zombie.setHealth(baseHealth * 1.1);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.9);
+            }
+            case VETERAN -> {
+                // Elite zombie - transformed from kills
+                double attackBonus = plugin.getConfig().getDouble("zombie-classes.veteran.attack-bonus", 4.0);
+                double healthAdd = plugin.getConfig().getDouble("zombie-classes.veteran.add-health", 0.0);
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth + healthAdd);
+                zombie.setHealth(baseHealth + healthAdd);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 1.1);
+            }
+            case WEBBER -> {
+                // Webber - places cobwebs on hit, holds string in off-hand
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                zombie.getEquipment().setItemInOffHand(new ItemStack(Material.STRING));
+            }
+            case BURSTER -> {
+                // Burster - explodes when close, lower HP
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.8);
+                zombie.setHealth(baseHealth * 0.8);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.5);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.6);
+            }
+            case FROST -> {
+                // Frost - slows targets on hit, wears aqua chestplate
+                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                zombie.setHealth(baseHealth);
+                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                
+                // CRITICAL FIX: Only frost zombies get blue leather chestplate
+                ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
+                chestplate.getItemMeta();
+                if (chestplate.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
+                    meta.setColor(org.bukkit.Color.AQUA);
+                    chestplate.setItemMeta(meta);
+                }
+                zombie.getEquipment().setChestplate(chestplate);
             }
         }
     }
@@ -138,12 +264,17 @@ public class ZombpocalypseUtils {
     public void tickZombieAI(Zombie zombie) {
         ZombieType type = getZombieType(zombie);
         if (type == null) return;
+        
+        // Clean switch expression for AI behaviors (Strategy Pattern-like approach)
         switch (type) {
             case NURSE -> tickNurseAI(zombie);
             case MINER -> tickMinerAI(zombie);
             case SPITTER -> tickSpitterAI(zombie);
             case SCORCHED -> tickScorchedAI(zombie);
             case PSYCHOPATH -> tickPsychopathAI(zombie);
+            case BUILDER -> tickBuilderAI(zombie);
+            // SWARMER, RUNNER, TANK, VETERAN have no special AI behaviors
+            default -> { /* No special AI for this type */ }
         }
     }
 
@@ -225,7 +356,9 @@ public class ZombpocalypseUtils {
         }
         for (Entity e : scorched.getNearbyEntities(2, 2, 2)) {
             if (e instanceof Player p && p.getGameMode() == GameMode.SURVIVAL) {
-                p.setFireTicks(40);
+                // Cosmetic flame particles instead of actual fire
+                p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 0.5, 0), 8, 0.3, 0.6, 0.3, 0.05);
+                p.getWorld().spawnParticle(Particle.SMOKE, p.getLocation().add(0, 0.5, 0), 4, 0.2, 0.4, 0.2, 0.02);
             }
         }
     }
@@ -240,6 +373,45 @@ public class ZombpocalypseUtils {
                 psycho.getWorld().playSound(psycho.getLocation(), Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 1.5f);
                 psycho.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, psycho.getLocation().add(0, 2, 0), 5);
                 psycho.getPersistentDataContainer().set(LAST_RAGE_KEY, PersistentDataType.LONG, now);
+            }
+        }
+    }
+
+    private void tickBuilderAI(Zombie builder) {
+        LivingEntity target = builder.getTarget();
+        if (target == null) return;
+
+        long now = System.currentTimeMillis();
+        NamespacedKey lastBuildKey = new NamespacedKey("zombpocalypse", "last_build");
+        Long lastBuild = builder.getPersistentDataContainer().get(lastBuildKey, PersistentDataType.LONG);
+        int delay = plugin.getConfig().getInt("zombie-classes.builder.place-delay-ticks", 40) * 50;
+
+        if (lastBuild != null && (now - lastBuild) < delay) return;
+
+        // Builder places blocks to create paths/obstacles
+        Vector direction = target.getLocation().toVector().subtract(builder.getLocation().toVector()).normalize();
+        Block placeBlock = builder.getLocation().add(direction).getBlock();
+        Block belowBlock = placeBlock.getRelative(0, -1, 0);
+
+        // Only place if target block is air and below block is solid
+        if (placeBlock.getType() == Material.AIR && belowBlock.getType().isSolid()) {
+            if (!isInsideClaim(placeBlock.getLocation())) {
+                Material buildMaterial = Material.DIRT; // Default builder material
+                String configMaterial = plugin.getConfig().getString("zombie-classes.builder.block-type", "DIRT");
+                try {
+                    buildMaterial = Material.valueOf(configMaterial);
+                } catch (IllegalArgumentException e) {
+                    buildMaterial = Material.DIRT;
+                }
+
+                placeBlock.setType(buildMaterial);
+                builder.getWorld().playSound(builder.getLocation(), Sound.BLOCK_GRAVEL_PLACE, 1.0f, 1.0f);
+                builder.getWorld().spawnParticle(Particle.BLOCK, placeBlock.getLocation().add(0.5, 0.5, 0.5), 5, buildMaterial.createBlockData());
+                
+                // Track the block for cleanup
+                plugin.trackBuilderBlock(placeBlock.getLocation(), builder.getUniqueId());
+                
+                builder.getPersistentDataContainer().set(lastBuildKey, PersistentDataType.LONG, now);
             }
         }
     }
@@ -262,5 +434,113 @@ public class ZombpocalypseUtils {
         l.addPotionEffect(new PotionEffect(PotionEffectType.POISON, duration * 20, level - 1));
         l.getWorld().spawnParticle(Particle.ITEM_SLIME, l.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.1);
         l.getWorld().playSound(l.getLocation(), Sound.ENTITY_GENERIC_SPLASH, 1.0f, 1.0f);
+    }
+
+    // === WEBBER EVENT HANDLERS ===
+    
+    public void handleWebberHit(Zombie webber, Player victim) {
+        long now = System.currentTimeMillis();
+        Long lastWeb = webber.getPersistentDataContainer().get(LAST_WEB_KEY, PersistentDataType.LONG);
+        
+        // Cooldown: once every 7 seconds per zombie
+        if (lastWeb != null && (now - lastWeb) < 7000) return;
+
+         int webCount = plugin.getConfig().getInt("zombie-classes.webber.web_count", 3);
+         long cleanupDelay = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 40L);
+
+         Block baseBlock = victim.getLocation().getBlock();
+         Set<Block> placed = new HashSet<>();
+         int maxAttempts = Math.max(1, webCount) * 10;
+         int attempts = 0;
+
+         while (placed.size() < webCount && attempts < maxAttempts) {
+             int dx = ThreadLocalRandom.current().nextInt(-1, 2);
+             int dz = ThreadLocalRandom.current().nextInt(-1, 2);
+             Block block = baseBlock.getRelative(dx, 0, dz);
+             if (block.getType() == Material.AIR) {
+                 block.setType(Material.COBWEB);
+                 placed.add(block);
+             }
+             attempts++;
+         }
+
+         List<Block> webBlocks = new ArrayList<>(placed);
+         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+             for (Block block : webBlocks) {
+                 if (block.getType() == Material.COBWEB) {
+                     block.setType(Material.AIR);
+                 }
+             }
+         }, cleanupDelay);
+
+        webber.getPersistentDataContainer().set(LAST_WEB_KEY, PersistentDataType.LONG, now);
+    }
+
+    // === BURSTER EVENT HANDLERS ===
+    
+    public void handleBursterTarget(Zombie burster, Player target) {
+        double radius = plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0);
+        if (burster.getLocation().distanceSquared(target.getLocation()) > radius * radius) return;
+
+        UUID id = burster.getUniqueId();
+        if (activeBursterFuses.containsKey(id)) return;
+        if (burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.BYTE)
+                || burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.LONG)) {
+            return;
+        }
+
+        int fuseTicks = plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30);
+        float power = (float) plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0);
+        
+        // CRITICAL FIX: Add burster fuse to tracking map
+        BukkitRunnable fuse = new BukkitRunnable() {
+            private int ticks = 0;
+            
+            @Override
+            public void run() {
+                if (burster.isDead() || !burster.isValid()) {
+                    this.cancel();
+                    activeBursterFuses.remove(id);
+                    return;
+                }
+                
+                ticks++;
+                
+                if (ticks >= fuseTicks) {
+                    // Explode
+                    Location loc = burster.getLocation();
+                    burster.remove(); // Remove entity before explosion
+                    loc.getWorld().createExplosion(loc, power, false, false);
+                    this.cancel();
+                    activeBursterFuses.remove(id);
+                } else {
+                    // Visual effects
+                    burster.setGlowing(true);
+                    if (ticks % 5 == 0) {
+                        burster.setGlowing(false);
+                    }
+                }
+            }
+        };
+        
+        activeBursterFuses.put(id, fuse);
+        fuse.runTaskTimer(plugin, 0, 1);
+    }
+    
+    // CRITICAL FIX: Add method to cancel burster fuse
+    public void cancelBursterFuse(Zombie burster) {
+        UUID id = burster.getUniqueId();
+        BukkitRunnable fuse = activeBursterFuses.remove(id);
+        if (fuse != null) {
+            fuse.cancel();
+        }
+    }
+
+    // === FROST EVENT HANDLERS ===
+    
+    public void handleFrostHit(Zombie frost, Player victim) {
+        int durationTicks = plugin.getConfig().getInt("zombie-classes.frost.duration_ticks", 100);
+        int level = plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2);
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, Math.max(0, level - 1)));
     }
 }

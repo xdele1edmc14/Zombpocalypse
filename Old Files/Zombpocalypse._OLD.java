@@ -1,7 +1,11 @@
 package com.deleted.zombpocalypse;
 
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -11,14 +15,21 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Monster;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.*;
-import org.bukkit.event.player.*;
+import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -26,17 +37,21 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecutor {
 
     private List<String> enabledWorlds;
-    private ZombpocalypseUtils utils;
 
     // --- PERSISTENCE FIELDS ---
     private File dataFile;
     private FileConfiguration dataConfig;
+    // --------------------------
 
     // --- CONFIG VARIABLES ---
     private boolean debugMode;
@@ -54,7 +69,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     // --- BLOOD MOON ---
     private boolean bloodMoonEnabled;
-    private boolean forcedBloodMoon = false;
+    private boolean forcedBloodMoon = false; // <-- NEW FLAG
     private int bloodMoonInterval;
     private String bloodMoonTitle;
     private double bmHealthMult;
@@ -62,6 +77,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private double bmSpeedMult;
     private double bmHordeMult;
     private BossBar bloodMoonBar;
+    // ------------------
 
     // --- IMMUNITY TRACKING ---
     private final List<UUID> immunePlayers = new ArrayList<>();
@@ -69,14 +85,8 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private final Map<UUID, Long> immunityEndTime = new HashMap<>();
     private final Map<UUID, Double> originalHealth = new HashMap<>();
     private final Map<UUID, BukkitTask> scheduledTasks = new HashMap<>();
+
     private final long IMMUNITY_DURATION_TICKS = 10 * 60 * 20L;
-
-    // --- SCENT TRACKING ---
-    private final Map<UUID, Double> playerScent = new HashMap<>();
-    private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
-
-    // --- AI TICKER ---
-    private BukkitTask aiTask;
 
     @Override
     public void onEnable() {
@@ -95,37 +105,34 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         }
         dataConfig = YamlConfiguration.loadConfiguration(dataFile);
         loadImmunityData();
+        // --------------------------------------------
 
         // --- Hooks Setup ---
         setupHooks();
-
-        // --- Utils Setup ---
-        utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
 
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("zreload").setExecutor(this);
         getCommand("help").setExecutor(this);
         getCommand("zitem").setExecutor(this);
-        getCommand("forcebloodmoon").setExecutor(this);
-        getCommand("zspawn").setExecutor(this);
+        getCommand("forcebloodmoon").setExecutor(this); // <-- REGISTER COMMAND
 
         startSpawnerTask();
         startImmunityBossBarTask();
         startBloodMoonTask();
-        startScentDecayTask();
-        startAITickTask();
 
-        getLogger().info("[Zombpocalypse v1.3] Zombpocalypse has started! Brains...");
+        getLogger().info("[Zombpocalypse] Zombpocalypse has started! Brains...");
     }
 
     @Override
     public void onDisable() {
         saveImmunityData();
 
+        // Clear Immunity Bars
         for (BossBar bar : immunityBossBars.values()) {
             bar.removeAll();
         }
 
+        // Clear Blood Moon Bar
         if (bloodMoonBar != null) {
             bloodMoonBar.removeAll();
         }
@@ -133,6 +140,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         Bukkit.getScheduler().cancelTasks(this);
     }
 
+    // --- HELPER FOR DEBUGGING ---
     public void debugLog(String message) {
         if (debugMode) {
             getLogger().info("[DEBUG] " + message);
@@ -150,14 +158,16 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         }
     }
 
+    // Check if a location is inside a claim where we shouldn't spawn
     public boolean isInsideClaim(Location loc) {
         if (!griefPreventionEnabled) return false;
         if (!getConfig().getBoolean("hooks.griefprevention.prevent-spawning-in-claims")) return false;
 
+        // GriefPrevention API check
         return griefPrevention.dataStore.getClaimAt(loc, false, null) != null;
     }
 
-    // === BLOOD MOON LOGIC ===
+    // --- BLOOD MOON LOGIC ---
 
     public boolean isBloodMoonActive(World world) {
         if (!bloodMoonEnabled) return false;
@@ -167,12 +177,14 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         long fullTime = world.getFullTime();
         long dayNumber = fullTime / 24000;
 
+        // Check if it's the correct day cycle OR if manually forced
         boolean isDayOf = (dayNumber > 0) && (dayNumber % bloodMoonInterval == 0);
 
         if (forcedBloodMoon) {
             isDayOf = true;
         }
 
+        // Check if it's night time (approx 13000 to 23000)
         boolean isNight = time >= 13000 && time <= 23000;
 
         return isDayOf && isNight;
@@ -186,6 +198,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             public void run() {
                 if (!bloodMoonEnabled || Bukkit.getWorlds().isEmpty()) return;
 
+                // We use the first world to drive the global event for now
                 World mainWorld = Bukkit.getWorlds().get(0);
 
                 if (isBloodMoonActive(mainWorld)) {
@@ -193,8 +206,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                     long endTime = 23000;
                     long remaining = endTime - time;
 
+                    // Update BossBar
                     if (remaining > 0) {
-                        double progress = (double) remaining / 10000.0;
+                        double progress = (double) remaining / 10000.0; // Night lasts ~10000 ticks
                         bloodMoonBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
 
                         long totalSeconds = remaining / 20;
@@ -205,6 +219,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                         bloodMoonBar.setTitle(ChatColor.translateAlternateColorCodes('&',
                                 bloodMoonTitle.replace("%time%", timeStr)));
 
+                        // Add players in enabled worlds to bar
                         for (Player p : Bukkit.getOnlinePlayers()) {
                             if (isWorldEnabled(p.getWorld()) && !bloodMoonBar.getPlayers().contains(p)) {
                                 bloodMoonBar.addPlayer(p);
@@ -212,116 +227,26 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                         }
                     }
                 } else {
+                    // Not active. If it WAS forced and it is now morning (> 23000), reset the flag
+                    // so we don't have endless blood moons every night.
                     if (forcedBloodMoon && mainWorld.getTime() > 23000) {
                         forcedBloodMoon = false;
                         debugLog("Forced Blood Moon flag reset (Morning arrived).");
                     }
 
+                    // Not Blood Moon, remove everyone
                     if (!bloodMoonBar.getPlayers().isEmpty()) {
                         bloodMoonBar.removeAll();
                     }
                 }
             }
-        }.runTaskTimer(this, 20L, 20L);
+        }.runTaskTimer(this, 20L, 20L); // Run every second
     }
 
+    // --- EXPOSED CONFIG GETTERS FOR TASKS ---
     public double getBloodMoonHordeMultiplier() {
         return bmHordeMult;
     }
-
-    // === SCENT SYSTEM ===
-
-    private void startScentDecayTask() {
-        if (!getConfig().getBoolean("scent-system.enabled", true)) return;
-
-        int intervalSeconds = getConfig().getInt("scent-system.decay-interval-seconds", 5);
-        double decayAmount = getConfig().getDouble("scent-system.decay-amount", 1.0);
-
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (UUID uuid : new ArrayList<>(playerScent.keySet())) {
-                    double current = playerScent.get(uuid);
-                    double newScent = Math.max(0.0, current - decayAmount);
-
-                    if (newScent <= 0.0) {
-                        playerScent.remove(uuid);
-                    } else {
-                        playerScent.put(uuid, newScent);
-                    }
-                }
-            }
-        }.runTaskTimer(this, 0L, intervalSeconds * 20L);
-    }
-
-    public double getPlayerScent(UUID uuid) {
-        return playerScent.getOrDefault(uuid, 0.0);
-    }
-
-    public void addPlayerScent(UUID uuid, double amount) {
-        double current = playerScent.getOrDefault(uuid, 0.0);
-        playerScent.put(uuid, current + amount);
-        debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + (current + amount) + ")");
-    }
-
-    @EventHandler
-    public void onPlayerToggleSprint(PlayerToggleSprintEvent event) {
-        if (!getConfig().getBoolean("scent-system.enabled", true)) return;
-
-        Player player = event.getPlayer();
-        UUID uuid = player.getUniqueId();
-
-        if (event.isSprinting()) {
-            // Started sprinting
-            if (!playerSprinting.getOrDefault(uuid, false)) {
-                double sprintAdd = getConfig().getDouble("scent-system.sprint-add", 2.0);
-                addPlayerScent(uuid, sprintAdd);
-                playerSprinting.put(uuid, true);
-            }
-        } else {
-            // Stopped sprinting
-            playerSprinting.put(uuid, false);
-        }
-    }
-
-    @EventHandler
-    public void onEntityDeath(EntityDeathEvent event) {
-        if (!getConfig().getBoolean("scent-system.enabled", true)) return;
-
-        Player killer = event.getEntity().getKiller();
-        if (killer != null) {
-            double killAdd = getConfig().getDouble("scent-system.kill-add", 1.0);
-            addPlayerScent(killer.getUniqueId(), killAdd);
-        }
-
-        // VETERAN transformation check
-        if (event.getEntity().getKiller() instanceof Zombie killerZombie) {
-            if (getConfig().getBoolean("zombie-classes.veteran.permanent", true)) {
-                utils.transformToVeteran(killerZombie);
-            }
-        }
-    }
-
-    // === AI TICK SYSTEM ===
-
-    private void startAITickTask() {
-        aiTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (World world : Bukkit.getWorlds()) {
-                    if (!isWorldEnabled(world)) continue;
-
-                    for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
-                        if (entity instanceof Zombie zombie) {
-                            utils.tickZombieAI(zombie);
-                        }
-                    }
-                }
-            }
-        }.runTaskTimer(this, 0L, 10L); // Tick every 0.5 seconds
-    }
-
-    // === IMMUNITY SYSTEM ===
 
     private void loadImmunityData() {
         if (dataConfig.contains("player-immunity")) {
@@ -390,26 +315,10 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                     if (player == null || !player.isOnline()) { continue; }
                     if (player.getWorld() == null) continue;
 
-                    Long endTime = immunityEndTime.get(uuid);
-                    if (endTime == null) continue;
-
-                    long remainingTicks = endTime - currentFullTime;
+                    long remainingTicks = immunityEndTime.get(uuid) - currentFullTime;
                     long remainingSeconds = remainingTicks / 20;
 
-                    if (remainingTicks <= 0) {
-                        // Immunity expired - clean up immediately
-                        if (originalHealth.containsKey(uuid) && player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
-                            double originalMaxHealth = originalHealth.get(uuid);
-                            player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(originalMaxHealth);
-                            player.setHealth(Math.min(player.getHealth(), originalMaxHealth));
-                            player.sendMessage("§aYour maximum health has been restored.");
-                        }
-                        cleanUpPlayerState(player);
-                        player.sendMessage("§6§lYour Zombie Guts immunity has worn off!§r");
-                        dataConfig.set("player-immunity." + uuid.toString(), null);
-                        try { dataConfig.save(dataFile); } catch (IOException e) {}
-                        continue;
-                    }
+                    if (remainingTicks <= 0) continue;
 
                     double progress = (double) remainingTicks / IMMUNITY_DURATION_TICKS;
                     immunityBossBars.get(uuid).setProgress(Math.max(0.0, Math.min(1.0, progress)));
@@ -425,18 +334,22 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     }
 
     private void loadConfigValues() {
+        // Core
         enabledWorlds = getConfig().getStringList("enabled-worlds");
         debugMode = getConfig().getBoolean("debug-mode", false);
 
+        // General
         daySpawnChance = getConfig().getDouble("apocalypse-settings.day-spawn-chance");
         useMobBlacklist = getConfig().getBoolean("apocalypse-settings.use-mob-blacklist");
         mobList = getConfig().getStringList("apocalypse-settings.mob-list");
         ignoreLightLevel = getConfig().getBoolean("apocalypse-settings.ignore-light-level");
 
+        // Zombie Specifics
         allowBabyZombies = getConfig().getBoolean("zombie-settings.allow-baby-zombies");
         allowZombieVillagers = getConfig().getBoolean("zombie-settings.allow-zombie-villagers");
         zombieGutsEnabled = getConfig().getBoolean("zombie-settings.zombie-guts.enabled");
 
+        // Blood Moon
         bloodMoonEnabled = getConfig().getBoolean("bloodmoon.enabled");
         bloodMoonInterval = getConfig().getInt("bloodmoon.interval-days", 10);
         bloodMoonTitle = getConfig().getString("bloodmoon.bossbar-title", "Blood Moon");
@@ -445,14 +358,12 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         bmSpeedMult = getConfig().getDouble("bloodmoon.multipliers.speed", 1.2);
         bmHordeMult = getConfig().getDouble("bloodmoon.multipliers.horde-size", 1.5);
 
-        getLogger().info("Configuration Loaded. Debug Mode: " + debugMode);
+        getLogger().info("Configuration Loaded. Debug Mode: " + debugMode + ", GriefPrevention: " + getConfig().getBoolean("hooks.griefprevention.enabled"));
     }
 
     boolean isWorldEnabled(World world) {
         return enabledWorlds.contains(world.getName());
     }
-
-    // === EVENT HANDLERS ===
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -499,12 +410,10 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             if (bar != null) bar.removeAll();
         }
 
+        // Also remove from Blood Moon bar to prevent memory leaks
         if (bloodMoonBar != null) {
             bloodMoonBar.removePlayer(player);
         }
-
-        playerSprinting.remove(uuid);
-        playerScent.remove(uuid); // Fixed: Memory Leak - cleanup scent data
 
         saveImmunityData();
     }
@@ -534,13 +443,29 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             if (!allowBabyZombies && zombie.isBaby()) { event.setCancelled(true); return; }
             if (!allowZombieVillagers && zombie.isVillager()) { event.setCancelled(true); return; }
 
-            // Fixed: Check if type is ALREADY assigned (by /zspawn or other means) before overriding
-            if (zombie.getPersistentDataContainer().has(ZombpocalypseUtils.ZOMBIE_TYPE_KEY, PersistentDataType.STRING)) {
-                return;
+            // Base Stats
+            double health = getConfig().getDouble("zombie-settings.health");
+            double damage = getConfig().getDouble("zombie-settings.damage");
+            double speed = getConfig().getDouble("zombie-settings.speed");
+
+            // Blood Moon Multipliers
+            if (isBloodMoonActive(zombie.getWorld())) {
+                health *= bmHealthMult;
+                damage *= bmDamageMult;
+                speed *= bmSpeedMult;
+                // We don't log this every time to avoid spam, but it's happening
             }
 
-            // Assign zombie type randomly
-            utils.assignZombieType(zombie);
+            if (zombie.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+                zombie.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(health);
+                zombie.setHealth(health);
+            }
+            if (zombie.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) {
+                zombie.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(damage);
+            }
+            if (zombie.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
+                zombie.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(speed);
+            }
         }
     }
 
@@ -604,33 +529,15 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
                 player.sendMessage("§2§lYou consumed Zombie Guts!§a Zombies will ignore you for 10 minutes.");
 
-                // Clear all zombies currently targeting this player
-                for (Entity entity : player.getWorld().getEntities()) {
-                    if (entity instanceof Zombie zombie) {
-                        if (zombie.getTarget() != null && zombie.getTarget().equals(player)) {
-                            zombie.setTarget(null);
-                        }
-                    }
-                };
-
-                // Fixed: Item consumption logic to handle offhand correctly
                 if (item.getAmount() > 1) {
                     item.setAmount(item.getAmount() - 1);
                 } else {
-                    item.setAmount(0);
+                    if (player.getInventory().getItemInMainHand().equals(item)) {
+                        player.getInventory().setItemInMainHand(null);
+                    } else if (player.getInventory().getItemInOffHand().equals(item)) {
+                        player.getInventory().setItemInOffHand(null);
+                    }
                 }
-            }
-        }
-    }
-
-    @EventHandler
-    public void onProjectileHit(ProjectileHitEvent event) {
-        if (!(event.getEntity() instanceof Snowball snowball)) return;
-
-        String acidTag = snowball.getPersistentDataContainer().get(ZombpocalypseUtils.ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
-        if (acidTag != null && acidTag.equals("ACID")) {
-            if (event.getHitEntity() != null) {
-                utils.handleAcidHit(event.getHitEntity());
             }
         }
     }
@@ -680,12 +587,11 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     private void startSpawnerTask() {
         long rate = getConfig().getLong("apocalypse-settings.spawn-rate", 1200L);
-        Bukkit.getScheduler().cancelTasks(this);
+        Bukkit.getScheduler().cancelTasks(this); // Be careful with this if adding other tasks!
 
+        // Re-start tasks since we cancelled all
         startImmunityBossBarTask();
         startBloodMoonTask();
-        startScentDecayTask();
-        startAITickTask();
 
         getLogger().info("TASK START: Spawner Task @ " + rate + " ticks.");
         new HordeSpawnerTask(this).runTaskTimer(this, 0L, rate);
@@ -700,24 +606,11 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         int safeVariance = Math.max(0, variance);
 
         double multiplier = 1.0;
-
-        // Blood Moon multiplier
         if (isBloodMoonActive(world)) {
             multiplier = getBloodMoonHordeMultiplier();
         }
 
-        // Scent multiplier
-        if (getConfig().getBoolean("scent-system.enabled", true)) {
-            double scent = getPlayerScent(player.getUniqueId());
-            double scentScale = getConfig().getDouble("scent-system.scent-scale", 10.0);
-            multiplier *= (1.0 + (scent / scentScale));
-        }
-
         int totalAmount = (int) ((baseAmount + ThreadLocalRandom.current().nextInt(safeVariance + 1)) * multiplier);
-
-        // Cap
-        int spawnCap = getConfig().getInt("scent-system.spawn-cap", 50);
-        totalAmount = Math.min(totalAmount, spawnCap);
 
         debugLog("Attempting to spawn horde of size: " + totalAmount + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
@@ -729,11 +622,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             double zOffset = ThreadLocalRandom.current().nextDouble(-radius, radius);
             Location spawnLoc = player.getLocation().add(xOffset, 0, zOffset);
 
+            // --- GRIEF PREVENTION CHECK ---
             if (isInsideClaim(spawnLoc)) {
                 debugLog("Blocked spawn inside GriefPrevention claim.");
                 continue;
             }
 
+            // --- RELATIVE Y-COORDINATE SEARCH ---
             Location searchLoc = spawnLoc.clone().add(0, 3, 0);
             boolean foundSurface = false;
             for (int j = 0; j < 6; j++) {
@@ -761,8 +656,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         }
     }
 
-    // === COMMANDS ===
-
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("zreload")) {
@@ -772,12 +665,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             Bukkit.getScheduler().cancelTasks(this);
             reloadConfig();
             loadConfigValues();
-            utils.reloadWeights();
             startSpawnerTask();
             startImmunityBossBarTask();
             startBloodMoonTask();
-            startScentDecayTask();
-            startAITickTask();
             sender.sendMessage("§a[Zombpocalypse] Config & Systems reloaded!");
             return true;
         }
@@ -800,6 +690,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             return true;
         }
 
+        // --- NEW FORCE BLOOD MOON COMMAND ---
         if (command.getName().equalsIgnoreCase("forcebloodmoon")) {
             if (!sender.hasPermission("zombpocalypse.admin")) {
                 sender.sendMessage("§cNo permission."); return true;
@@ -813,106 +704,19 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
             long time = world.getTime();
             if (time < 13000 || time > 23000) {
-                world.setTime(13000);
+                world.setTime(13000); // Set to start of night
                 sender.sendMessage("§7(Time set to night to begin event immediately)");
             }
 
             return true;
         }
 
-        if (command.getName().equalsIgnoreCase("zspawn")) {
-            if (!sender.hasPermission("zombpocalypse.command.zspawn")) {
-                sender.sendMessage("§cNo permission."); return true;
-            }
-
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage("§cOnly players can use this command.");
-                return true;
-            }
-
-            if (args.length < 1) {
-                sender.sendMessage("§cUsage: /zspawn <type|horde> [count] [radius]");
-                return true;
-            }
-
-            String typeArg = args[0].toUpperCase();
-            int count = 1;
-            int radius = 5;
-
-            if (args.length >= 2) {
-                try {
-                    count = Integer.parseInt(args[1]);
-                } catch (NumberFormatException e) {
-                    sender.sendMessage("§cInvalid count number.");
-                    return true;
-                }
-            }
-
-            if (args.length >= 3) {
-                try {
-                    radius = Integer.parseInt(args[2]);
-                } catch (NumberFormatException e) {
-                    sender.sendMessage("§cInvalid radius number.");
-                    return true;
-                }
-            }
-
-            count = Math.min(count, 50); // Safety cap
-            radius = Math.min(radius, 50);
-
-            if (typeArg.equals("HORDE")) {
-                // Spawn mixed horde
-                for (int i = 0; i < count; i++) {
-                    Location spawnLoc = player.getLocation().add(
-                            ThreadLocalRandom.current().nextDouble(-radius, radius),
-                            0,
-                            ThreadLocalRandom.current().nextDouble(-radius, radius)
-                    );
-
-                    if (isInsideClaim(spawnLoc)) continue;
-
-                    player.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
-                }
-                sender.sendMessage("§aSpawned horde of " + count + " zombies!");
-                return true;
-            }
-
-            // Specific type
-            ZombpocalypseUtils.ZombieType type;
-            try {
-                type = ZombpocalypseUtils.ZombieType.valueOf(typeArg);
-            } catch (IllegalArgumentException e) {
-                sender.sendMessage("§cInvalid zombie type. Valid types: " + Arrays.toString(ZombpocalypseUtils.ZombieType.values()));
-                return true;
-            }
-
-            for (int i = 0; i < count; i++) {
-                Location spawnLoc = player.getLocation().add(
-                        ThreadLocalRandom.current().nextDouble(-radius, radius),
-                        0,
-                        ThreadLocalRandom.current().nextDouble(-radius, radius)
-                );
-
-                if (isInsideClaim(spawnLoc)) continue;
-
-                // Fixed: Use spawn consumer to apply type BEFORE the entity fully spawns
-                // This prevents visual flickering and ensures onEntitySpawn doesn't override it
-                player.getWorld().spawn(spawnLoc, Zombie.class, zombie -> {
-                    utils.applyZombieType(zombie, type);
-                });
-            }
-
-            sender.sendMessage("§aSpawned " + count + " " + type.name() + " zombies!");
-            return true;
-        }
-
         if (command.getName().equalsIgnoreCase("help")) {
-            sender.sendMessage("§4§l--- Zombpocalypse v1.3 ---");
+            sender.sendMessage("§4§l--- Zombpocalypse v1.2 ---");
             sender.sendMessage("§aBy xDele1ed.");
             sender.sendMessage("§b/zreload§7: Reload config.");
             sender.sendMessage("§b/zitem zombie_guts§7: Get guts.");
             sender.sendMessage("§b/forcebloodmoon§7: Start Blood Moon.");
-            sender.sendMessage("§b/zspawn <type|horde> [count] [radius]§7: Spawn zombies.");
             return true;
         }
         return false;

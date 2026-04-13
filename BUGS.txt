@@ -1,0 +1,15 @@
+Zombies Still Spawn In front of me
+The "pop up" effect does not work(remove it, its unnessecary)
+Zombie Spawn Rates Still Hardcoded to 50
+during a blood moon, it says "Attempting to spawn horde of size: 35 near xDele1ed (Multiplier: 5.0)" but it spawns a very small horde
+the 'apocalypse-settings:' dosent work. the health logic, etc works but the spawn rate, spawn radius, base horde size, spawn variance does not work.
+even if i set:
+
+spawn-rate: 1            # Ticks between spawns (20 ticks = 1 second)
+  spawn-radius: 1             # Blocks around player
+  base-horde-size: 100           # Base zombies per horde
+  horde-variance: 100         # Random +0 to +4 zombies
+  day-spawn-chance: 0.02       # 2% chance to spawn during day
+
+only a little amount of zombies spawn. It seems the spawning logic is completly broken.
+when you start a bloodmoon, then reload the plugin. a new bossbar below the previous one appears then the previous one freezes

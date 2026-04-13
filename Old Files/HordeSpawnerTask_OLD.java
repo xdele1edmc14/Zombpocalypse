@@ -18,6 +18,7 @@ public class HordeSpawnerTask extends BukkitRunnable {
     @Override
     public void run() {
         try {
+            // Replaced info log with debugLog
             plugin.debugLog("TASK: Running scheduled spawner check.");
 
             if (Bukkit.getWorlds().isEmpty()) {
@@ -44,10 +45,10 @@ public class HordeSpawnerTask extends BukkitRunnable {
 
             for (Player player : Bukkit.getOnlinePlayers()) {
                 if (!plugin.isWorldEnabled(player.getWorld())) {
-                    continue;
+                    continue; // Silent skip
                 }
                 if (player.getGameMode().toString().equals("CREATIVE") || player.getGameMode().toString().equals("SPECTATOR")) {
-                    continue;
+                    continue; // Silent skip
                 }
 
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);

@@ -1,0 +1,55 @@
+# Zombpocalypse Plugin Configuration File
+# ----------------------------------------------------------------------
+# V1.2 - Blood Moon, GriefPrevention Support, and Debug Controls
+# ----------------------------------------------------------------------
+
+# Toggles console debug messages (spammy logs)
+debug-mode: false
+
+enabled-worlds:
+  - world
+  - world_nether
+  - world_the_end
+
+# NEW: External Plugin Hooks
+hooks:
+  griefprevention:
+    enabled: true
+    prevent-spawning-in-claims: true
+
+zombie-settings:
+  health: 30.0
+  damage: 8.0
+  speed: 0.35
+
+  allow-baby-zombies: true
+  allow-zombie-villagers: true
+
+  zombie-guts:
+    enabled: true
+
+apocalypse-settings:
+  spawn-rate: 100
+  spawn-radius: 40
+  base-horde-size: 10
+  horde-variance: 10
+  day-spawn-chance: 1.0
+  ignore-light-level: false
+  use-mob-blacklist: true
+  mob-list:
+    - SKELETON
+    - WITHER_SKELETON
+    - SPIDER
+
+# NEW: Blood Moon Feature
+bloodmoon:
+  enabled: true
+  interval-days: 10 # Happens every X in-game days
+  bossbar-title: "§4§l☠ BLOOD MOON ☠ §cRemaining: %time%"
+
+  # Multipliers applied to zombies during the event
+  multipliers:
+    health: 2.0  # 30 * 2.0 = 60 HP
+    damage: 1.5  # 8 * 1.5 = 12 Dmg
+    speed: 1.2   # Speed buff
+    horde-size: 2.0 # 10 zombies becomes 20
