@@ -446,7 +446,15 @@ public class ZombpocalypseUtils {
         if (lastWeb != null && (now - lastWeb) < 7000) return;
 
          int webCount = plugin.getConfig().getInt("zombie-classes.webber.web_count", 3);
-         long cleanupDelay = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 40L);
+         // Prefer seconds-based config key for readability (fallback to old ticks-based key)
+         long cleanupDelayTicks;
+         if (plugin.getConfig().contains("zombie-classes.webber.cleanup_delay_seconds")) {
+             long seconds = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay_seconds", 5L);
+             cleanupDelayTicks = Math.max(1L, seconds) * 20L;
+         } else {
+             // Backwards compatible: default to ~5 seconds if old key missing
+             cleanupDelayTicks = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 100L);
+         }
 
          Block baseBlock = victim.getLocation().getBlock();
          Set<Block> placed = new HashSet<>();
@@ -471,7 +479,7 @@ public class ZombpocalypseUtils {
                      block.setType(Material.AIR);
                  }
              }
-         }, cleanupDelay);
+         }, cleanupDelayTicks);
 
         webber.getPersistentDataContainer().set(LAST_WEB_KEY, PersistentDataType.LONG, now);
     }

@@ -155,6 +155,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         getCommand("help").setExecutor(this);
         getCommand("zitem").setExecutor(this);
         getCommand("forcebloodmoon").setExecutor(this);
+        getCommand("stopbloodmoon").setExecutor(this);
         getCommand("zspawn").setExecutor(this);
 
         // Register tab completers
@@ -163,10 +164,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         getCommand("zitem").setTabCompleter(tabCompleter);
 
         startSpawnerTask();
-        startImmunityBossBarTask();
-        startBloodMoonTask();
-        startScentDecayTask();
-        startAITickTask();
         startBuilderCleanupTask();
         startImmunityCheckTask();
 
@@ -1113,21 +1110,22 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     public void onEntityCombust(EntityCombustEvent event) {
         if (!isWorldEnabled(event.getEntity().getWorld())) return;
         if (event.getEntity() instanceof Zombie zombie) {
-            // CRITICAL FIX: Check zombie type before canceling combustion
+            // Check zombie type and potion effects to decide combustion handling
             ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
-            
-            // Only cancel combustion for zombies that should be immune to sunlight
-            // SCORCHED zombies are fire-immune, others may burn normally
-            if (type == ZombpocalypseUtils.ZombieType.SCORCHED) {
-                event.setCancelled(true); // Scorched zombies never burn
+
+            boolean hasFireResistance = zombie.getActivePotionEffects().stream()
+                    .anyMatch(pe -> pe.getType() == org.bukkit.potion.PotionEffectType.FIRE_RESISTANCE);
+
+            // If the zombie has explicit fire resistance or is a scorched type, cancel combustion
+            if (type == ZombpocalypseUtils.ZombieType.SCORCHED || hasFireResistance) {
+                event.setCancelled(true);
+                zombie.setFireTicks(0);
                 return;
             }
-            
-            // For other zombie types, check if it's day time
+
+            // For other zombie types, prevent burning during day if config disallows daylight burning
             long time = zombie.getWorld().getTime();
             boolean isDay = time > 0 && time < 12300;
-            
-            // CRITICAL FIX: Only prevent burning during day for non-scorched zombies if config allows
             if (isDay && !getConfig().getBoolean("zombie-settings.allow-daylight-burning", true)) {
                 event.setCancelled(true);
             }
@@ -1235,10 +1233,6 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                     performanceWatchdog.reload();
                 }
                 startSpawnerTask();
-                startImmunityBossBarTask();
-                startBloodMoonTask();
-                startScentDecayTask();
-                startAITickTask();
                 startBuilderCleanupTask();
                 startImmunityCheckTask(); // CRITICAL FIX: Restart immunity check task on reload
                 sender.sendMessage(messageManager.getWithPrefix("reload-success"));

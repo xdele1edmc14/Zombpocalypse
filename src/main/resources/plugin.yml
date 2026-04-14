@@ -1,4 +1,32 @@
 name: Zombpocalypse
+main: com.deleted.zombpocalypse.Zombpocalypse
+version: "1.3"
+api-version: 1.16
+commands:
+  zreload:
+    description: Reloads Zombpocalypse configuration
+    usage: /zreload
+    permission: zombpocalypse.admin
+  zitem:
+    description: Gives special plugin items
+    usage: /zitem <item> [player]
+    permission: zombpocalypse.admin
+  forcebloodmoon:
+    description: Force a blood moon for a duration
+    usage: /forcebloodmoon [minutes]
+    permission: zombpocalypse.admin
+  stopbloodmoon:
+    description: Stop an active blood moon
+    usage: /stopbloodmoon
+    permission: zombpocalypse.admin
+  zspawn:
+    description: Spawn zombies or hordes
+    usage: /zspawn <type|horde> [count] [radius]
+    permission: zombpocalypse.command.zspawn
+  help:
+    description: Show Zombpocalypse help
+    usage: /help
+name: Zombpocalypse
 version: 1.3.4-ALPHA
 main: com.deleted.zombpocalypse.Zombpocalypse
 api-version: 1.21
