@@ -63,6 +63,13 @@ bloodmoon:
   natural-start: "&4&lBLOOD MOON RISES! &cPrepare for battle!"
   natural-end: "&6The Blood Moon fades..."
 
+# MythicMobs Integration
+mythicmobs:
+  mutant-spawn-near: "&4&l☠ &cThe Mutant has emerged near you! Run!"
+  mutant-spawn-global: "&4&l☠ &cThe Mutant has emerged near &f{0}&c!"
+  mutant-killed-global: "&6&l[!] &eThe Mutant has been slain by &f{0}&e!"
+  mutant-killed-killer: "&6&l[!] &aYou have slain the Mutant! You are a legend."
+
 # Immunity System
 immunity:
   item-name: "&2&lZombie Guts"

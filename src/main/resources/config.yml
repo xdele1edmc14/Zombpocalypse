@@ -162,3 +162,30 @@ visuals:
 # Cleanup
 cleanup:
   miner-suppress-drops: false        # If true, blocks don't drop items
+# ============================================================
+# MythicMobs Smart Spawn Integration
+# Add this block anywhere in your config.yml
+# ============================================================
+mythicmobs:
+  integration:
+
+    # The internal MythicMobs mob name (case-sensitive, must match your .yml mob file)
+    mob-type: "modelfoundry_mutant_zombie_strong"
+
+    # Maximum number of this mob allowed alive across the entire server at once.
+    # Set to 0 to disable the cap (not recommended).
+    max-global-cap: 15
+
+    # Chance (0.0–1.0) to attempt a spawn each tick interval per online player.
+    # 0.05 = 5% chance every tick-interval ticks.
+    spawn-chance: 0.05
+
+    # How many ticks between each chance roll (20 ticks = 1 second).
+    # Default 100 = rolls every 5 seconds per player.
+    spawn-tick-interval: 100
+
+    # Distance from a player where the mob tries to spawn.
+    # The system prefers locations outside line-of-sight within this range.
+    spawn-radius:
+      min: 20   # Minimum blocks from player
+      max: 40   # Maximum blocks from player

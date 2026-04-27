@@ -20,6 +20,7 @@ public class ZombpocalypseTabCompleter implements TabCompleter {
                 // First argument: zombie type or "horde"
                 List<String> types = new ArrayList<>();
                 types.add("horde");
+                types.add("MUTANT"); // MythicMobs boss type
                 for (ZombpocalypseUtils.ZombieType type : ZombpocalypseUtils.ZombieType.values()) {
                     types.add(type.name());
                 }

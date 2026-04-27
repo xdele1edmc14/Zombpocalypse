@@ -33,7 +33,7 @@ api-version: 1.21
 authors: [xDele1ed]
 description: A hardcore zombie horde plugin with advanced AI, Blood Moons, and GriefPrevention support.
 
-softdepend: [GriefPrevention]
+softdepend: [GriefPrevention, MythicMobs]
 
 commands:
   zreload:

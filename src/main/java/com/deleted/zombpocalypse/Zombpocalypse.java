@@ -39,6 +39,7 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private UndeadSpawner undeadSpawner;
     private MessageManager messageManager;
     private PerformanceWatchdog performanceWatchdog;
+    private MythicMobsManager mythicMobsManager;
 
     // --- PERSISTENCE FIELDS ---
     private File dataFile;
@@ -143,6 +144,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         // --- Utils Setup ---
         utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
         undeadSpawner = new UndeadSpawner(this, utils);
+
+        // --- MythicMobs Integration ---
+        mythicMobsManager = new MythicMobsManager(this);
 
         // --- Performance Watchdog Setup ---
         performanceWatchdog = new PerformanceWatchdog(this);
@@ -356,6 +360,11 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                             forcedBloodMoon = false;
                             saveBloodMoonData();
                             debugLog("Blood moon ended - persistence reset.");
+
+                            // --- MythicMobs: stop tick loop ---
+                            if (mythicMobsManager != null) {
+                                mythicMobsManager.onBloodMoonEnd();
+                            }
                         }
                     }
                 } else {
@@ -385,7 +394,12 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                             bloodMoonPersisted = true;
                             persistedBloodMoonDay = currentDay;
                             saveBloodMoonData();
-                            
+
+                            // --- MythicMobs: guaranteed Mutant + tick loop ---
+                            if (mythicMobsManager != null) {
+                                mythicMobsManager.onBloodMoonStart();
+                            }
+
                             getLogger().info("Natural blood moon started on day " + currentDay);
                             debugLog("Blood moon persistence: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay);
                             
@@ -1232,6 +1246,9 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 if (performanceWatchdog != null) {
                     performanceWatchdog.reload();
                 }
+                if (mythicMobsManager != null) {
+                    mythicMobsManager.loadConfig();
+                }
                 startSpawnerTask();
                 startBuilderCleanupTask();
                 startImmunityCheckTask(); // CRITICAL FIX: Restart immunity check task on reload
@@ -1319,7 +1336,12 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
             
             // CRITICAL FIX: Save forced blood moon state
             saveBloodMoonData();
-            
+
+            // --- MythicMobs: guaranteed Mutant + tick loop ---
+            if (mythicMobsManager != null) {
+                mythicMobsManager.onBloodMoonStart();
+            }
+
             sender.sendMessage(messageManager.get("bloodmoon.force-start") + " §7(§e" + duration + " minutes§7)");
 
             long time = world.getTime();
@@ -1347,7 +1369,12 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 forcedBloodMoonStartTime = -1; // CRITICAL FIX: Reset forced start time
                 forcedBloodMoonDuration = -1; // CRITICAL FIX: Reset forced duration
                 saveBloodMoonData();
-                
+
+                // --- MythicMobs: stop tick loop ---
+                if (mythicMobsManager != null) {
+                    mythicMobsManager.onBloodMoonEnd();
+                }
+
                 // CRITICAL FIX: Force bossbar cleanup
                 if (!bloodMoonBar.getPlayers().isEmpty()) {
                     bloodMoonBar.removeAll();
@@ -1408,6 +1435,19 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
             count = Math.min(count, getConfig().getInt("performance.max-total-zombies", 300)); // Use config value
             radius = Math.min(radius, 50); // Keep radius reasonable
+
+            // --- MythicMobs: MUTANT type ---
+            if (typeArg.equals("MUTANT")) {
+                if (mythicMobsManager == null || !mythicMobsManager.isMythicMobsEnabled()) {
+                    sender.sendMessage("§c[MythicMobs] MythicMobs is not available on this server.");
+                    return true;
+                }
+                int spawned = mythicMobsManager.spawnMutantCommand(player, count, radius);
+                sender.sendMessage("§aSpawned §c" + spawned + " §a" + mythicMobsManager.getMobType()
+                        + "§a! (Active: §c" + mythicMobsManager.getActiveMutantCount()
+                        + "§a/§c" + mythicMobsManager.getMaxGlobalCap() + "§a)");
+                return true;
+            }
 
             if (typeArg.equals("HORDE")) {
                 // Spawn mixed horde
