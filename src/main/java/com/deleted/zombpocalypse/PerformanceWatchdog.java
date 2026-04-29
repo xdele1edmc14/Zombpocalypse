@@ -10,6 +10,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,8 +25,17 @@ public class PerformanceWatchdog {
     
     private long checkIntervalTicks;
     
+    // Minor fix: implement spawningPaused so HordeSpawnerTask can query it
+    private boolean spawningPaused = false;
+    
     // LOD (Level of Detail) system for distance-based AI throttling
-    private final Map<Zombie, Long> zombieLastAITick = new HashMap<>();
+    // Bug 7 fix: bounded LinkedHashMap — evicts dead/invalid entries and caps at 1000 to prevent unbounded growth
+    private final Map<Zombie, Long> zombieLastAITick = new LinkedHashMap<>(256, 0.75f, false) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Zombie, Long> eldest) {
+            return size() > 1000 || eldest.getKey().isDead() || !eldest.getKey().isValid();
+        }
+    };
     private final double lodDistanceThreshold = 32.0; // Blocks
     private final long lodTickInterval = 20L; // Ticks between AI updates for far zombies (1 second)
 
@@ -139,11 +149,19 @@ public class PerformanceWatchdog {
     }
 
     private void pauseAllSpawning() {
-        // no-op
+        spawningPaused = true;
+        plugin.debugLog("Spawning paused due to critical TPS.");
     }
     
     private void resumeSpawning() {
-        // no-op
+        if (spawningPaused) {
+            spawningPaused = false;
+            plugin.debugLog("Spawning resumed — TPS recovered.");
+        }
+    }
+
+    public boolean isSpawningPaused() {
+        return spawningPaused;
     }
 
     private void cullZombiesInWorld(World world, int amount) {
@@ -202,49 +220,59 @@ public class PerformanceWatchdog {
     
     /**
      * LOD System: Distance-based AI throttling
-     * Zombies further than lodDistanceThreshold from players have reduced AI update frequency
+     * Bug 19 fix: call zombie.setAI(false/true) to actually suppress vanilla pathfinding for far zombies.
+     * The previous implementation only gated plugin-side AI methods — vanilla pathfinding ran regardless.
      */
     private void updateLODSystem() {
         long currentTick = Bukkit.getServer().getCurrentTick();
-        
+
         for (World world : Bukkit.getWorlds()) {
             if (!plugin.isWorldEnabled(world)) continue;
-            
+
             List<Player> players = world.getPlayers();
-            if (players.isEmpty()) continue;
-            
+            if (players.isEmpty()) {
+                // No players — disable AI for all zombies in this world to save CPU
+                for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
+                    if (!(entity instanceof Zombie zombie) || zombie.isDead() || !zombie.isValid()) continue;
+                    // Bug 19 fix: skip zombies mid-rise-animation (setAI(false) would conflict)
+                    if (zombie.getPersistentDataContainer().has(
+                            ZombpocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                    if (zombie.hasAI()) zombie.setAI(false);
+                    zombieLastAITick.put(zombie, currentTick);
+                }
+                continue;
+            }
+
             for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
                 if (!(entity instanceof Zombie zombie)) continue;
-                
-                // Find nearest player
+                if (zombie.isDead() || !zombie.isValid()) continue;
+                // Bug 19 fix: skip animating zombies
+                if (zombie.getPersistentDataContainer().has(
+                        ZombpocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+
                 double minDistance = Double.MAX_VALUE;
                 for (Player player : players) {
-                    if (!player.getWorld().equals(world)) continue;
                     double dist = zombie.getLocation().distanceSquared(player.getLocation());
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                    }
+                    if (dist < minDistance) minDistance = dist;
                 }
-                
                 double distance = Math.sqrt(minDistance);
-                
-                // If zombie is far from players, throttle AI updates
+
                 if (distance > lodDistanceThreshold) {
-                    Long lastTick = zombieLastAITick.get(zombie);
-                    if (lastTick == null || (currentTick - lastTick) >= lodTickInterval) {
-                        // Allow AI tick
-                        zombieLastAITick.put(zombie, currentTick);
-                    }
-                    // Otherwise, skip AI tick for this zombie
+                    // Bug 19 fix: actually disable vanilla AI for far zombies
+                    if (zombie.hasAI()) zombie.setAI(false);
+                    zombieLastAITick.put(zombie, currentTick);
                 } else {
-                    // Close zombies get normal AI updates, remove from throttling map
+                    // Re-enable AI when a player moves close
+                    if (!zombie.hasAI()) zombie.setAI(true);
                     zombieLastAITick.remove(zombie);
                 }
             }
         }
-        
-        // Clean up map entries for zombies that no longer exist
-        zombieLastAITick.entrySet().removeIf(entry -> entry.getKey().isDead() || !entry.getKey().isValid());
+
+        // Bug 7 fix: only run the removeIf sweep when the map is large enough to warrant it
+        if (zombieLastAITick.size() > 500) {
+            zombieLastAITick.entrySet().removeIf(entry -> entry.getKey().isDead() || !entry.getKey().isValid());
+        }
     }
     
     /**

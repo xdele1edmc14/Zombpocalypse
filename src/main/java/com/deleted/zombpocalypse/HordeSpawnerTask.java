@@ -1,6 +1,7 @@
 package com.deleted.zombpocalypse;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -10,7 +11,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class HordeSpawnerTask extends BukkitRunnable {
 
     private final Zombpocalypse plugin;
-    private boolean hasLoggedDebug = false; // Throttle debug logs
 
     public HordeSpawnerTask(Zombpocalypse plugin) {
         this.plugin = plugin;
@@ -19,40 +19,40 @@ public class HordeSpawnerTask extends BukkitRunnable {
     @Override
     public void run() {
         try {
-            if (!hasLoggedDebug) {
-                plugin.debugLog("TASK: Running scheduled spawner check.");
-                hasLoggedDebug = true;
-            }
+            plugin.debugLog("TASK: Running scheduled spawner check.");
 
-            if (Bukkit.getWorlds().isEmpty()) {
-                plugin.getLogger().severe("TASK ERROR: No worlds are loaded! Skipping spawn attempt.");
+            // Minor fix: exit early if TPS is critically low (PerformanceWatchdog sets this flag)
+            if (plugin.getPerformanceWatchdog() != null && plugin.getPerformanceWatchdog().isSpawningPaused()) {
+                plugin.debugLog("TASK: Spawning paused due to low TPS, skipping.");
                 return;
             }
 
-            World firstWorld = Bukkit.getWorlds().get(0);
-            long time = firstWorld.getTime();
-            boolean isDay = time > 0 && time < 13000;
+            // Bug 12 fix: use the first world that is actually enabled by the plugin,
+            // not Bukkit.getWorlds().get(0) which may be an untracked world (e.g. nether/end).
+            World targetWorld = Bukkit.getWorlds().stream()
+                    .filter(plugin::isWorldEnabled)
+                    .findFirst()
+                    .orElse(null);
 
+            if (targetWorld == null) {
+                plugin.debugLog("TASK: No enabled worlds loaded, skipping spawn attempt.");
+                return;
+            }
+
+            long time = targetWorld.getTime();
+            boolean isDay = time > 0 && time < 13000;
             boolean isDayHordeSpawn = false;
 
             if (isDay) {
                 double daySpawnChance = plugin.getConfig().getDouble("apocalypse-settings.day-spawn-chance", 0.0);
-                double randomValue = ThreadLocalRandom.current().nextDouble();
-
-                if (randomValue > daySpawnChance) {
-                    return; // Removed debug spam
-                }
+                if (ThreadLocalRandom.current().nextDouble() > daySpawnChance) return;
                 isDayHordeSpawn = true;
             }
 
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (!plugin.isWorldEnabled(player.getWorld())) {
-                    continue;
-                }
-                if (player.getGameMode().toString().equals("CREATIVE") || player.getGameMode().toString().equals("SPECTATOR")) {
-                    continue;
-                }
-
+                if (!plugin.isWorldEnabled(player.getWorld())) continue;
+                // Minor fix: use enum constants instead of string comparison
+                if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) continue;
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);
             }
 

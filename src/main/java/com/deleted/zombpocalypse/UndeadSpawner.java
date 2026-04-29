@@ -108,7 +108,11 @@ public final class UndeadSpawner {
         activeOrRecentByBlockMs.put(blockKey, now);
 
         Location spawnLoc = surface.clone().add(0.0, -START_BELOW_SURFACE_Y, 0.0);
+        // Bug 20 fix: set the plugin-spawning flag so onEntitySpawn skips the mob-list check
+        // and does not call assignZombieType again (we call it ourselves below).
+        plugin.setPluginSpawning(true);
         Zombie zombie = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
+        plugin.setPluginSpawning(false);
         if (zombie == null) {
             activeOrRecentByBlockMs.remove(blockKey);
             return null;
@@ -131,6 +135,9 @@ public final class UndeadSpawner {
         zombie.setAI(false);
         zombie.setGravity(false);
         zombie.setInvulnerable(true);
+        // Bug 19 fix: mark as animating so the LOD system's setAI(false) doesn't fight the animation
+        zombie.getPersistentDataContainer().set(ZombpocalypseUtils.ANIMATING_KEY,
+                org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
 
         Location working = surface.clone().add(0.0, -START_BELOW_SURFACE_Y, 0.0);
 
@@ -192,6 +199,8 @@ public final class UndeadSpawner {
 
     private void finalizeZombie(Zombie zombie) {
         if (!zombie.isValid() || zombie.isDead()) return;
+        // Bug 19 fix: remove the animating tag before re-enabling AI so the LOD system takes over normally
+        zombie.getPersistentDataContainer().remove(ZombpocalypseUtils.ANIMATING_KEY);
         zombie.setInvulnerable(false);
         zombie.setGravity(true);
         zombie.setAI(true);

@@ -100,6 +100,7 @@ zombie-classes:
 
 # Scent Tracking - Your activity attracts bigger hordes
 scent-system:
+  max-scent: 100.0
   enabled: true
   sprint-add: 1.5              # Scent gained when sprinting
   kill-add: 0.8                # Scent gained per kill
@@ -120,11 +121,13 @@ zombie-settings:
 
 # Spawning
 apocalypse-settings:
-  spawn-rate: 150              # Ticks between spawns (20 ticks = 1 second)
+  spawn-rate: 1500              # Ticks between spawns (20 ticks = 1 second)
   spawn-radius: 35             # Blocks around player
   base-horde-size: 6           # Base zombies per horde
   horde-variance: 4            # Random +0 to +4 zombies
-  day-spawn-chance: 0.02       # 2% chance to spawn during day
+  day-spawn-chance: 0.02 
+  day-horde-size: 2
+  day-horde-variance: 2      # 2% chance to spawn during day
   ignore-light-level: false    # If true, spawns in daylight
   use-mob-blacklist: true      # If true, prevents listed mobs
   rising-animation: true        # Enable/disable zombie rise animation from ground

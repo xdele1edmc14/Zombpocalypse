@@ -28,6 +28,12 @@ public class ZombpocalypseUtils {
     public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("zombpocalypse", "last_rage");
     public static final NamespacedKey LAST_WEB_KEY = new NamespacedKey("zombpocalypse", "last_web");
     public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("zombpocalypse", "burster_primed");
+    // Bug 2 fix: dedicated PDC key for acid spit projectiles (ZOMBIE_TYPE_KEY belongs to zombie entities, not projectiles)
+    public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("zombpocalypse", "acid_spit");
+    // Bug 5 fix: static constant avoids allocating a new NamespacedKey every tick in tickBuilderAI
+    public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("zombpocalypse", "last_build");
+    // Bug 19 fix: marks a zombie as mid-rise-animation so the LOD system won't call setAI(false) on it
+    public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("zombpocalypse", "animating");
 
     public enum ZombieType {
         SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
@@ -65,13 +71,17 @@ public class ZombpocalypseUtils {
     }
 
     private ZombieType getRandomZombieType() {
+        // Bug 14 fix: guard against zero/empty weights
+        if (totalWeight <= 0 || spawnWeights.isEmpty()) return ZombieType.NORMAL;
         double random = ThreadLocalRandom.current().nextDouble() * totalWeight;
         double cumulative = 0.0;
         for (Map.Entry<ZombieType, Double> entry : spawnWeights.entrySet()) {
             cumulative += entry.getValue();
-            if (random <= cumulative) return entry.getKey();
+            // Bug 14 fix: strict < instead of <= eliminates last-entry boundary bias
+            if (random < cumulative) return entry.getKey();
         }
-        return ZombieType.SWARMER;
+        // Floating-point edge case fallback — return last entry rather than a hardcoded type
+        return spawnWeights.entrySet().iterator().next().getKey();
     }
 
     public void applyZombieType(Zombie zombie, ZombieType type) {
@@ -146,6 +156,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth * healthMult);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.9);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, runnerSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case TANK -> {
                 // High HP, armored, knockback resistant
@@ -160,6 +171,7 @@ public class ZombpocalypseUtils {
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.85);
                 setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, knockbackResist);
                 zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case MINER -> {
                 // Standard stats, focused on block breaking
@@ -167,6 +179,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case NURSE -> {
                 // Support zombie - lower damage, standard HP
@@ -174,6 +187,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.7);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case SPITTER -> {
                 // Ranged attacker - lower HP, standard speed
@@ -181,6 +195,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth * 0.85);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case SCORCHED -> {
                 // Fire zombie - standard stats with fire aura
@@ -201,6 +216,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case BUILDER -> {
                 // Builder zombie - places blocks, slower movement
@@ -208,6 +224,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth * 1.1);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.9);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case VETERAN -> {
                 // Elite zombie - transformed from kills
@@ -217,6 +234,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth + healthAdd);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 1.1);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case WEBBER -> {
                 // Webber - places cobwebs on hit, holds string in off-hand
@@ -225,6 +243,7 @@ public class ZombpocalypseUtils {
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
                 zombie.getEquipment().setItemInOffHand(new ItemStack(Material.STRING));
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case BURSTER -> {
                 // Burster - explodes when close, lower HP
@@ -232,6 +251,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth * 0.8);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.5);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.6);
+                applyFireResistance(zombie); // Bug 15 fix
             }
             case FROST -> {
                 // Frost - slows targets on hit, wears aqua chestplate
@@ -239,6 +259,7 @@ public class ZombpocalypseUtils {
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                applyFireResistance(zombie); // Bug 15 fix
                 
                 // CRITICAL FIX: Only frost zombies get blue leather chestplate
                 ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
@@ -254,6 +275,13 @@ public class ZombpocalypseUtils {
 
     private void setZombieStat(Zombie zombie, Attribute attribute, double value) {
         if (zombie.getAttribute(attribute) != null) zombie.getAttribute(attribute).setBaseValue(value);
+    }
+
+    // Bug 15 fix: centralised helper so every non-NORMAL type gets fire resistance
+    // (onEntityCombust cancels sunlight burning only when this effect is present)
+    private void applyFireResistance(Zombie zombie) {
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE,
+                Integer.MAX_VALUE, 0, false, false));
     }
 
     public ZombieType getZombieType(Zombie zombie) {
@@ -347,6 +375,9 @@ public class ZombpocalypseUtils {
         Vector velocity = target.getLocation().add(0, 1, 0).toVector().subtract(spitter.getEyeLocation().toVector()).normalize().multiply(1.2);
         LlamaSpit spit = spitter.launchProjectile(LlamaSpit.class, velocity);
         spit.setShooter(spitter);
+        // Bug 2 fix: tag the projectile with a dedicated key so onProjectileHit can identify it.
+        // Using ZOMBIE_TYPE_KEY on the spit never worked — that key belongs to the zombie entity, not the projectile.
+        spit.getPersistentDataContainer().set(ACID_SPIT_KEY, PersistentDataType.BYTE, (byte) 1);
         spitter.getWorld().playSound(spitter.getLocation(), Sound.ENTITY_LLAMA_SPIT, 1.0f, 0.8f);
     }
 
@@ -382,8 +413,8 @@ public class ZombpocalypseUtils {
         if (target == null) return;
 
         long now = System.currentTimeMillis();
-        NamespacedKey lastBuildKey = new NamespacedKey("zombpocalypse", "last_build");
-        Long lastBuild = builder.getPersistentDataContainer().get(lastBuildKey, PersistentDataType.LONG);
+        // Bug 5 fix: use the static LAST_BUILD_KEY constant — no new allocation every tick
+        Long lastBuild = builder.getPersistentDataContainer().get(LAST_BUILD_KEY, PersistentDataType.LONG);
         int delay = plugin.getConfig().getInt("zombie-classes.builder.place-delay-ticks", 40) * 50;
 
         if (lastBuild != null && (now - lastBuild) < delay) return;
@@ -411,7 +442,7 @@ public class ZombpocalypseUtils {
                 // Track the block for cleanup
                 plugin.trackBuilderBlock(placeBlock.getLocation(), builder.getUniqueId());
                 
-                builder.getPersistentDataContainer().set(lastBuildKey, PersistentDataType.LONG, now);
+                builder.getPersistentDataContainer().set(LAST_BUILD_KEY, PersistentDataType.LONG, now);
             }
         }
     }

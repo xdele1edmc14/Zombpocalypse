@@ -26,7 +26,7 @@ public class MythicMobsManager {
     private final Logger log;
     private BukkitAPIHelper mmAPI;
     private boolean mythicMobsEnabled = false;
-    private final Set<UUID> activeMutants = new HashSet();
+    private final Set<UUID> activeMutants = new HashSet<>();
     private BukkitTask spawnTickTask = null;
     private String mobType;
     private int maxGlobalCap;
@@ -278,10 +278,12 @@ public class MythicMobsManager {
 
     // Bug C fix: Bukkit.getEntity() returns null when the entity's chunk is unloaded, not just when dead.
     // Treating null as "dead" caused the cap to be bypassed whenever players ran far enough away.
+    // Fix: only remove a UUID when the entity is confirmed to exist AND be dead.
+    // If null, the chunk is simply unloaded — keep the UUID in the set.
     private void pruneDeadMutants() {
         this.activeMutants.removeIf((uuid) -> {
             Entity entity = Bukkit.getEntity(uuid);
-            return entity == null || entity.isDead();
+            return entity != null && entity.isDead();
         });
     }
 

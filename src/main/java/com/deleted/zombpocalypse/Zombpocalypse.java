@@ -91,9 +91,27 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private final Map<UUID, Double> playerScent = new HashMap<>();
     private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
     private final Map<UUID, Long> lastJumpTime = new HashMap<>();
+    private BukkitTask scentDecayTask;
+    private BukkitTask scentSprintTask;
 
     // --- AI TICKER ---
     private BukkitTask aiTask;
+
+    // Bug 1/13 fix: track blood moon task so it can be cancelled on reload/shutdown
+    private BukkitTask bloodMoonTask = null;
+
+    // Bug 4 & 20 fix: flag so onEntitySpawn bypasses the mob-list check for plugin-spawned entities
+    private boolean isPluginSpawning = false;
+
+    /** Called by UndeadSpawner before/after world.spawnEntity so onEntitySpawn skips the mob-list check. */
+    void setPluginSpawning(boolean value) {
+        this.isPluginSpawning = value;
+    }
+
+    /** Exposed so HordeSpawnerTask can query the spawning-paused state. */
+    public PerformanceWatchdog getPerformanceWatchdog() {
+        return performanceWatchdog;
+    }
 
     // --- BUILDER BLOCK TRACKING ---
     private final Map<Location, Long> builderBlocks = new HashMap<>(); // Location -> Timestamp
@@ -433,16 +451,19 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
     private void startScentDecayTask() {
         if (!getConfig().getBoolean("scent-system.enabled", true)) return;
 
+        // Cancel existing tasks on reload to prevent stacking
+        if (scentDecayTask != null && !scentDecayTask.isCancelled()) scentDecayTask.cancel();
+        if (scentSprintTask != null && !scentSprintTask.isCancelled()) scentSprintTask.cancel();
+
         int intervalSeconds = getConfig().getInt("scent-system.decay-interval-seconds", 5);
         double decayAmount = getConfig().getDouble("scent-system.decay-amount", 1.0);
 
-        new BukkitRunnable() {
+        scentDecayTask = new BukkitRunnable() {
             @Override
             public void run() {
                 for (UUID uuid : new ArrayList<>(playerScent.keySet())) {
                     double current = playerScent.get(uuid);
                     double newScent = Math.max(0.0, current - decayAmount);
-
                     if (newScent <= 0.0) {
                         playerScent.remove(uuid);
                     } else {
@@ -451,6 +472,21 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
                 }
             }
         }.runTaskTimer(this, 0L, intervalSeconds * 20L);
+
+        // Continuous sprint scent: fires every 20 ticks (1 second) while player is sprinting.
+        // The toggle event only catches start/stop — this ensures scent actually builds while running.
+        double sprintAdd = getConfig().getDouble("scent-system.sprint-add", 2.0);
+        scentSprintTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (!isWorldEnabled(p.getWorld())) continue;
+                    if (playerSprinting.getOrDefault(p.getUniqueId(), false)) {
+                        addPlayerScent(p.getUniqueId(), sprintAdd);
+                    }
+                }
+            }
+        }.runTaskTimer(this, 20L, 20L);
     }
 
     public double getPlayerScent(UUID uuid) {
@@ -459,28 +495,18 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
     public void addPlayerScent(UUID uuid, double amount) {
         double current = playerScent.getOrDefault(uuid, 0.0);
-        playerScent.put(uuid, current + amount);
-        debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + (current + amount) + ")");
+        double maxScent = getConfig().getDouble("scent-system.max-scent", 100.0);
+        double newScent = Math.min(current + amount, maxScent);
+        playerScent.put(uuid, newScent);
+        debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + newScent + " / " + maxScent + ")");
     }
 
     @EventHandler
     public void onPlayerToggleSprint(PlayerToggleSprintEvent event) {
         if (!getConfig().getBoolean("scent-system.enabled", true)) return;
-
-        Player player = event.getPlayer();
-        UUID uuid = player.getUniqueId();
-
-        if (event.isSprinting()) {
-            // Started sprinting
-            if (!playerSprinting.getOrDefault(uuid, false)) {
-                double sprintAdd = getConfig().getDouble("scent-system.sprint-add", 2.0);
-                addPlayerScent(uuid, sprintAdd);
-                playerSprinting.put(uuid, true);
-            }
-        } else {
-            // Stopped sprinting
-            playerSprinting.put(uuid, false);
-        }
+        // Just track sprint state — scent is added continuously by scentSprintTask, not here.
+        // Adding scent on toggle meant only one burst per sprint session regardless of duration.
+        playerSprinting.put(event.getPlayer().getUniqueId(), event.isSprinting());
     }
 
     @EventHandler
@@ -490,24 +516,21 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // Detect jumping by checking Y velocity (more reliable than position delta)
-        // Use cooldown to prevent multiple triggers from the same jump
+        // Jump detection: player must have been on the ground last tick and now have upward velocity.
+        // Pose.STANDING was wrong — a player is airborne (FALL) the moment they jump, so the old
+        // check almost never triggered. Instead we track onGround → positive Y velocity transition.
+        if (!player.isOnGround()) return;
+
         long currentTime = System.currentTimeMillis();
         Long lastJump = lastJumpTime.get(uuid);
-        
-        if (lastJump != null && (currentTime - lastJump) < 500) {
-            return; // Cooldown: only trigger once per 500ms
-        }
+        if (lastJump != null && (currentTime - lastJump) < 500) return;
 
-        // Check if player has positive Y velocity (jumping) and was on ground
-        if (player.getPose() == org.bukkit.entity.Pose.STANDING && event.getTo() != null && event.getFrom() != null) {
-            double velocityY = player.getVelocity().getY();
-            if (velocityY > 0.3) { // Significant upward velocity indicates a jump
-                double jumpAdd = getConfig().getDouble("scent-system.jump-add", 0.5);
-                addPlayerScent(uuid, jumpAdd);
-                lastJumpTime.put(uuid, currentTime);
-                debugLog("Player " + player.getName() + " jumped, added " + jumpAdd + " scent");
-            }
+        double velocityY = player.getVelocity().getY();
+        if (velocityY > 0.3) {
+            double jumpAdd = getConfig().getDouble("scent-system.jump-add", 0.5);
+            addPlayerScent(uuid, jumpAdd);
+            lastJumpTime.put(uuid, currentTime);
+            debugLog("Player " + player.getName() + " jumped, added " + jumpAdd + " scent");
         }
     }
 
@@ -1167,6 +1190,13 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
         
         int baseAmount = getConfig().getInt("apocalypse-settings.base-horde-size", 6);
         int variance = getConfig().getInt("apocalypse-settings.horde-variance", 4);
+
+        // Day spawns use a separate (smaller) horde size so daytime isn't as brutal as night.
+        // isDayHordeSpawn was passed all the way from HordeSpawnerTask but was never consumed — fixed.
+        if (isDayHordeSpawn) {
+            baseAmount = getConfig().getInt("apocalypse-settings.day-horde-size", Math.max(1, baseAmount / 3));
+            variance   = getConfig().getInt("apocalypse-settings.day-horde-variance", Math.max(0, variance / 2));
+        }
 
         World world = player.getWorld();
         int safeVariance = Math.max(0, variance);
