@@ -1226,37 +1226,47 @@ public class Zombpocalypse extends JavaPlugin implements Listener, CommandExecut
 
         int spawnRadius = getConfig().getInt("apocalypse-settings.spawn-radius", 35);
 
+        int skipped = 0;
         for (int i = 0; i < finalHordeSize; i++) {
-            // Calculate location like /zspawn command
             double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
             double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
             Location spawnLoc = player.getLocation().clone().add(xOffset, 0, zOffset);
 
             Location surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
-            
-            // CRITICAL FIX: Add null check to prevent crashes
+
+            // Retry once with a fresh random offset before giving up — reduces wasted
+            // attempts near water, ravines, or ocean biomes.
             if (surface == null) {
-                debugLog("Skipping spawn - surface location is null for player " + player.getName() + " at " + spawnLoc);
-                continue; // Skip this spawn attempt
+                xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+                zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
+                spawnLoc = player.getLocation().clone().add(xOffset, 0, zOffset);
+                surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
             }
-            
+
+            if (surface == null) {
+                skipped++;
+                continue;
+            }
+
             Block surfaceBlock = surface.getBlock().getRelative(BlockFace.DOWN);
             BlockData surfaceData = surfaceBlock.getBlockData();
-            
-            // Check if rising animation is enabled
+
             boolean risingAnimation = getConfig().getBoolean("apocalypse-settings.rising-animation", true);
-            
+
             if (risingAnimation) {
-                // Use rising animation with staggered delays
                 long startDelayTicks = i % 5L;
                 undeadSpawner.trySpawnUndeadRise(surface, surfaceBlock, surfaceData, startDelayTicks);
             } else {
-                // Spawn directly without animation
+                isPluginSpawning = true;
                 Zombie zombie = (Zombie) surface.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
-                if (zombie != null) {
-                    utils.assignZombieType(zombie);
-                }
+                isPluginSpawning = false;
+                if (zombie != null) utils.assignZombieType(zombie);
             }
+        }
+
+        // Single summary log instead of one line per failed attempt
+        if (skipped > 0) {
+            debugLog("Horde near " + player.getName() + ": " + (finalHordeSize - skipped) + "/" + finalHordeSize + " spawned (" + skipped + " skipped - no valid surface)");
         }
     }
 
