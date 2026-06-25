@@ -1,0 +1,138 @@
+package com.deleted.zombpocalypse;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Owns the Scent subsystem: per-player scent accumulation, the decay + continuous-sprint
+ * tasks, and scent accrual from sprinting, jumping and kills. Scent raises the size of the
+ * hordes spawned near a player (consumed by {@link HordeManager#spawnZombiesNearPlayer}).
+ *
+ * Extracted verbatim from the original Zombpocalypse monolith (Bug C4 jump-edge detection
+ * preserved).
+ */
+public class ScentManager {
+
+    private final Zombpocalypse plugin;
+
+    private final Map<UUID, Double> playerScent = new HashMap<>();
+    private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
+    private final Map<UUID, Long> lastJumpTime = new HashMap<>();
+    // Bug C4 fix: previous-tick ground state so onMove can detect the on-ground -> airborne jump edge
+    private final Map<UUID, Boolean> playerWasOnGround = new HashMap<>();
+    private BukkitTask scentDecayTask;
+    private BukkitTask scentSprintTask;
+
+    public ScentManager(Zombpocalypse plugin) {
+        this.plugin = plugin;
+    }
+
+    public void startTasks() {
+        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+
+        // Cancel existing tasks on reload to prevent stacking
+        if (scentDecayTask != null && !scentDecayTask.isCancelled()) scentDecayTask.cancel();
+        if (scentSprintTask != null && !scentSprintTask.isCancelled()) scentSprintTask.cancel();
+
+        int intervalSeconds = plugin.getConfig().getInt("scent-system.decay-interval-seconds", 5);
+        double decayAmount = plugin.getConfig().getDouble("scent-system.decay-amount", 1.0);
+
+        scentDecayTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (UUID uuid : new ArrayList<>(playerScent.keySet())) {
+                    double current = playerScent.get(uuid);
+                    double newScent = Math.max(0.0, current - decayAmount);
+                    if (newScent <= 0.0) {
+                        playerScent.remove(uuid);
+                    } else {
+                        playerScent.put(uuid, newScent);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 0L, intervalSeconds * 20L);
+
+        // Continuous sprint scent: fires every 20 ticks (1 second) while player is sprinting.
+        // The toggle event only catches start/stop — this ensures scent actually builds while running.
+        double sprintAdd = plugin.getConfig().getDouble("scent-system.sprint-add", 2.0);
+        scentSprintTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (!plugin.isWorldEnabled(p.getWorld())) continue;
+                    if (playerSprinting.getOrDefault(p.getUniqueId(), false)) {
+                        addScent(p.getUniqueId(), sprintAdd);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L);
+    }
+
+    public double getScent(UUID uuid) {
+        return playerScent.getOrDefault(uuid, 0.0);
+    }
+
+    public void addScent(UUID uuid, double amount) {
+        double current = playerScent.getOrDefault(uuid, 0.0);
+        double maxScent = plugin.getConfig().getDouble("scent-system.max-scent", 100.0);
+        double newScent = Math.min(current + amount, maxScent);
+        playerScent.put(uuid, newScent);
+        plugin.debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + newScent + " / " + maxScent + ")");
+    }
+
+    // === EVENT HOOKS (called by ZombpocalypseListener) ===
+
+    public void onToggleSprint(Player player, boolean sprinting) {
+        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+        // Just track sprint state — scent is added continuously by scentSprintTask, not here.
+        // Adding scent on toggle meant only one burst per sprint session regardless of duration.
+        playerSprinting.put(player.getUniqueId(), sprinting);
+    }
+
+    public void onMove(Player player) {
+        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+
+        UUID uuid = player.getUniqueId();
+
+        // Jump detection: a jump is the transition from on-ground (last tick) to airborne
+        // (this tick) with upward velocity. Bug C4 fix: the old guard `if (!player.isOnGround())
+        // return;` fired for the entire airborne portion of every jump, so the velocity check
+        // below was never reached and jumps produced zero scent. Track the previous-tick ground
+        // state to detect the take-off edge instead.
+        boolean wasOnGround = playerWasOnGround.getOrDefault(uuid, true);
+        boolean nowOnGround = player.isOnGround();
+        playerWasOnGround.put(uuid, nowOnGround);
+
+        if (!wasOnGround || nowOnGround) return;
+
+        long currentTime = System.currentTimeMillis();
+        Long lastJump = lastJumpTime.get(uuid);
+        if (lastJump != null && (currentTime - lastJump) < 500) return;
+
+        double velocityY = player.getVelocity().getY();
+        if (velocityY > 0.3) {
+            double jumpAdd = plugin.getConfig().getDouble("scent-system.jump-add", 0.5);
+            addScent(uuid, jumpAdd);
+            lastJumpTime.put(uuid, currentTime);
+            plugin.debugLog("Player " + player.getName() + " jumped, added " + jumpAdd + " scent");
+        }
+    }
+
+    public void onKill(Player killer) {
+        double killAdd = plugin.getConfig().getDouble("scent-system.kill-add", 1.0);
+        addScent(killer.getUniqueId(), killAdd);
+    }
+
+    public void onPlayerQuit(UUID uuid) {
+        playerSprinting.remove(uuid);
+        lastJumpTime.remove(uuid);
+        playerWasOnGround.remove(uuid);
+    }
+}

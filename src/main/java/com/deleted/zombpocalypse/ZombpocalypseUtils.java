@@ -122,9 +122,9 @@ public class ZombpocalypseUtils {
 
         boolean isBloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
         if (isBloodMoon) {
-            baseHealth *= plugin.bmHealthMult;
-            baseDamage *= plugin.bmDamageMult;
-            baseSpeed *= plugin.bmSpeedMult;
+            baseHealth *= plugin.getBloodMoon().getHealthMult();
+            baseDamage *= plugin.getBloodMoon().getDamageMult();
+            baseSpeed *= plugin.getBloodMoon().getSpeedMult();
         }
 
         switch (type) {
@@ -163,7 +163,7 @@ public class ZombpocalypseUtils {
                 double tankHealth = plugin.getConfig().getDouble("zombie-classes.tank.health", 50.0);
                 double knockbackResist = plugin.getConfig().getDouble("zombie-classes.tank.knockback-resistance", 0.6);
                 if (isBloodMoon) {
-                    tankHealth *= plugin.bmHealthMult;
+                    tankHealth *= plugin.getBloodMoon().getHealthMult();
                 }
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, tankHealth);
                 zombie.setHealth(tankHealth);
