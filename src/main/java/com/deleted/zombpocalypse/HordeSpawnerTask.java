@@ -50,9 +50,28 @@ public class HordeSpawnerTask extends BukkitRunnable {
             }
 
             for (Player player : Bukkit.getOnlinePlayers()) {
-                if (!plugin.isWorldEnabled(player.getWorld())) continue;
+                // Diagnostic: log the live world the plugin actually sees for this player and the
+                // reason it is (or isn't) eligible. Decisive for the "/rtp lands me in the lobby
+                // world, not the main world" question — the spawner always reads player.getWorld()
+                // fresh, so whatever name prints here is genuinely where the player is right now.
+                World pw = player.getWorld();
+                if (!plugin.isWorldEnabled(pw)) {
+                    plugin.debugLog("Spawn skip: " + player.getName() + " is in world '" + pw.getName()
+                            + "' which is NOT in enabled-worlds.");
+                    continue;
+                }
+                // Lobby world: bossbar and events still work, but no zombie spawning
+                if (plugin.isLobbyWorld(pw)) {
+                    plugin.debugLog("Spawn skip: " + player.getName() + " is in world '" + pw.getName()
+                            + "' which is a lobby-world (spawning suppressed there).");
+                    continue;
+                }
                 // Minor fix: use enum constants instead of string comparison
-                if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) continue;
+                if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
+                    plugin.debugLog("Spawn skip: " + player.getName() + " is in gamemode " + player.getGameMode() + ".");
+                    continue;
+                }
+                plugin.debugLog("Spawn eligible: " + player.getName() + " in world '" + pw.getName() + "' — spawning horde.");
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);
             }
 

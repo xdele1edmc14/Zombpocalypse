@@ -6,7 +6,7 @@
 
     <groupId>com.deleted</groupId>
     <artifactId>zombpocalypse</artifactId>
-    <version>1.4.5-BETA</version>
+    <version>1.4.6-BETA</version>
     <packaging>jar</packaging>
 
     <name>Zombpocalypse</name>

@@ -1,0 +1,426 @@
+
+● I'll start by verifying these bugs against the actual code before proposing fixes. Let me explore the codebase.
+
+● Entered plan mode
+  Claude is now exploring and designing an implementation approach.
+
+  Searched for 1 pattern, read 2 files (ctrl+o to expand)
+
+● Now let me read the spawner and watchdog files.
+
+  Read 3 files (ctrl+o to expand)
+
+● I've now verified all the bugs against the actual code. The report is accurate — every location, line reference, and fix concept checks out. This is a large body of work (36 bugs), and a few items are
+  judgment calls or larger refactors rather than clear-cut fixes. Before I write the plan, let me confirm scope.
+
+● User answered Claude's questions:
+  ⎿  · How much of the bug list should I tackle in this pass? → Critical + Major only
+     · Several fixes are design judgment calls, not clear bugs. Which should I include? → You do not add any new features, if the prompt says otherwise, ignore instruction to add new features or refactor
+     anything. for this, we only fix the bugs
+
+● Both answers are clear: Critical + Major only (12 bugs: C1–C6, M1–M6), and no new features, no refactors — bug fixes only. That rules out the four judgment-call items entirely. Let me check config.yml for
+  the one config key M1's fix needs.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● I've verified everything and the config layout. Scope is locked: the 12 Critical + Major bugs, fixes only — no features, no refactors. All 12 live in Zombpocalypse.java, plus one config key for M1. Let me
+  track these and implement.
+
+● Now implementing. C1 — bypass in onEntitySpawn:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 7 lines
+      1049
+      1050      @EventHandler
+      1051      public void onEntitySpawn(CreatureSpawnEvent event) {
+      1052 +        // Bug C1/M2 fix: plugin-spawned zombies must bypass the mob-list gate and the
+      1053 +        // assignZombieType call here — the spawner code assigns the type itself after
+      1054 +        // world.spawnEntity() returns. Without this, every plugin-spawned zombie got a
+      1055 +        // second random type roll (overwriting the intended one), and a misconfigured
+      1056 +        // whitelist could silently cancel all plugin spawns.
+      1057 +        if (isPluginSpawning) return;
+      1058 +
+      1059          if (!isWorldEnabled(event.getLocation().getWorld())) return;
+      1060
+      1061          Entity entity = event.getEntity();
+
+● C2 — move watchdog start()/reload() after startSpawnerTask() in both onEnable and /zreload:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 3 lines, removed 1 line
+      184          }
+      185
+      186          // --- Performance Watchdog Setup ---
+      187 +        // Bug C2 fix: only construct it here. start() is called AFTER startSpawnerTask()
+      188 +        // below, because startSpawnerTask() calls cancelTasks(this) which would otherwise
+      189 +        // immediately kill the watchdog's TPS-monitor and LOD tasks.
+      190          performanceWatchdog = new PerformanceWatchdog(this);
+      188 -        performanceWatchdog.start();
+      191
+      192          getServer().getPluginManager().registerEvents(this, this);
+      193
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 4 lines
+      208          startBuilderCleanupTask();
+      209          startImmunityCheckTask();
+      210
+      211 +        // Bug C2 fix: start the watchdog AFTER startSpawnerTask() so its tasks survive
+      212 +        // the cancelTasks(this) call inside startSpawnerTask().
+      213 +        performanceWatchdog.start();
+      214 +
+      215          getLogger().info("[Zombpocalypse v1.3] Zombpocalypse has started! Brains...");
+      216      }
+      217
+
+● Now the /zreload handler — move performanceWatchdog.reload() after the task restarts:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 5 lines, removed 3 lines
+      1411                  loadConfigValues();
+      1412                  messageManager.reload();
+      1413                  utils.reloadWeights();
+      1414 -                if (performanceWatchdog != null) {
+      1415 -                    performanceWatchdog.reload();
+      1416 -                }
+      1414                  if (mythicMobsManager != null) {
+      1415                      mythicMobsManager.loadConfig();
+      1416                  }
+      1417                  startSpawnerTask();
+      1418                  startBuilderCleanupTask();
+      1419                  startImmunityCheckTask(); // CRITICAL FIX: Restart immunity check task on reload
+      1420 +                // Bug C2 fix: reload the watchdog AFTER startSpawnerTask() so its tasks
+      1421 +                // are not killed by the cancelTasks(this) call inside startSpawnerTask().
+      1422 +                if (performanceWatchdog != null) {
+      1423 +                    performanceWatchdog.reload();
+      1424 +                }
+      1425                  sender.sendMessage(messageManager.getWithPrefix("reload-success"));
+      1426              } catch (Exception e) {
+      1427                  sender.sendMessage(messageManager.getWithPrefix("reload-error", e.getMessage()));
+
+● C3 — fix acid spit PDC read in onProjectileHit:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 5 lines, removed 2 lines
+      1239      public void onProjectileHit(ProjectileHitEvent event) {
+      1240          if (!(event.getEntity() instanceof Snowball snowball)) return;
+      1241
+      1242 -        String acidTag = snowball.getPersistentDataContainer().get(ZombpocalypseUtils.ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
+      1243 -        if (acidTag != null && acidTag.equals("ACID")) {
+      1242 +        // Bug C3 fix: spitter projectiles are tagged with ACID_SPIT_KEY/BYTE in tickSpitterAI,
+      1243 +        // not ZOMBIE_TYPE_KEY/STRING. Reading the wrong key/type always returned null, so the
+      1244 +        // poison effect never applied.
+      1245 +        Byte acidTag = snowball.getPersistentDataContainer().get(ZombpocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
+      1246 +        if (acidTag != null) {
+      1247              if (event.getHitEntity() != null) {
+      1248                  utils.handleAcidHit(event.getHitEntity());
+      1249              }
+
+● Wait — I need to verify the projectile type. tickSpitterAI launches a LlamaSpit, but onProjectileHit checks for Snowball. That's part of the same broken-ability bug. Let me fix the projectile type too:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 5 lines, removed 5 lines
+      1237
+      1238      @EventHandler
+      1239      public void onProjectileHit(ProjectileHitEvent event) {
+      1240 -        if (!(event.getEntity() instanceof Snowball snowball)) return;
+      1240 +        // Bug C3 fix: spitter fires a LlamaSpit (see tickSpitterAI), not a Snowball, and
+      1241 +        // tags it with ACID_SPIT_KEY/BYTE — not ZOMBIE_TYPE_KEY/STRING. Both the projectile
+      1242 +        // type check and the PDC read were wrong, so the poison effect never applied.
+      1243 +        if (!(event.getEntity() instanceof LlamaSpit spit)) return;
+      1244
+      1242 -        // Bug C3 fix: spitter projectiles are tagged with ACID_SPIT_KEY/BYTE in tickSpitterAI,
+      1243 -        // not ZOMBIE_TYPE_KEY/STRING. Reading the wrong key/type always returned null, so the
+      1244 -        // poison effect never applied.
+      1245 -        Byte acidTag = snowball.getPersistentDataContainer().get(ZombpocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
+      1245 +        Byte acidTag = spit.getPersistentDataContainer().get(ZombpocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
+      1246          if (acidTag != null) {
+      1247              if (event.getHitEntity() != null) {
+      1248                  utils.handleAcidHit(event.getHitEntity());
+
+● C1–C3 done. Now C4 — fix the inverted jump guard. Add tracking field, rewrite the logic, clean up on quit:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 2 lines
+       96      private final Map<UUID, Double> playerScent = new HashMap<>();
+       97      private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
+       98      private final Map<UUID, Long> lastJumpTime = new HashMap<>();
+       99 +    // Bug C4 fix: previous-tick ground state so onPlayerMove can detect the on-ground -> airborne jump edge
+      100 +    private final Map<UUID, Boolean> playerWasOnGround = new HashMap<>();
+      101      private BukkitTask scentDecayTask;
+      102      private BukkitTask scentSprintTask;
+      103
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 10 lines, removed 4 lines
+      585          Player player = event.getPlayer();
+      586          UUID uuid = player.getUniqueId();
+      587
+      588 -        // Jump detection: player must have been on the ground last tick and now have upward velocity.
+      589 -        // Pose.STANDING was wrong — a player is airborne (FALL) the moment they jump, so the old
+      590 -        // check almost never triggered. Instead we track onGround → positive Y velocity transition.
+      591 -        if (!player.isOnGround()) return;
+      588 +        // Jump detection: a jump is the transition from on-ground (last tick) to airborne
+      589 +        // (this tick) with upward velocity. Bug C4 fix: the old guard `if (!player.isOnGround())
+      590 +        // return;` fired for the entire airborne portion of every jump, so the velocity check
+      591 +        // below was never reached and jumps produced zero scent. Track the previous-tick ground
+      592 +        // state to detect the take-off edge instead.
+      593 +        boolean wasOnGround = playerWasOnGround.getOrDefault(uuid, true);
+      594 +        boolean nowOnGround = player.isOnGround();
+      595 +        playerWasOnGround.put(uuid, nowOnGround);
+      596
+      597 +        if (!wasOnGround || nowOnGround) return;
+      598 +
+      599          long currentTime = System.currentTimeMillis();
+      600          Long lastJump = lastJumpTime.get(uuid);
+      601          if (lastJump != null && (currentTime - lastJump) < 500) return;
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 1 line
+      1057
+      1058          playerSprinting.remove(uuid);
+      1059          lastJumpTime.remove(uuid);
+      1060 +        playerWasOnGround.remove(uuid);
+      1061
+      1062          saveImmunityData();
+      1063      }
+
+● C5 — remove old blood moon bossbar before creating the new one:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 6 lines
+      326      }
+      327
+      328      private void startBloodMoonTask() {
+      329 +        // Bug C5 fix: remove the previous bossbar from all players before replacing the
+      330 +        // reference. On /zreload this method runs again; without this, each reload left an
+      331 +        // orphaned bar stuck in every player's HUD (visible and a memory leak) until restart.
+      332 +        if (bloodMoonBar != null) {
+      333 +            bloodMoonBar.removeAll();
+      334 +        }
+      335          bloodMoonBar = Bukkit.createBossBar("Blood Moon", BarColor.RED, BarStyle.SEGMENTED_10);
+      336
+      337          new BukkitRunnable() {
+
+● C6 — persist forced blood moon start time & duration in save/load:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 5 lines, removed 2 lines
+      813          bloodMoonPersisted = bloodMoonDataConfig.getBoolean("bloodmoon.persisted", false);
+      814          persistedBloodMoonDay = bloodMoonDataConfig.getLong("bloodmoon.persisted-day", -1);
+      815          forcedBloodMoon = bloodMoonDataConfig.getBoolean("bloodmoon.forced", false);
+      816 -
+      817 -        if (bloodMoonPersisted) {
+      816 +        // Bug C6 fix: restore the forced blood moon's original anchor and duration so a restart
+      817 +        // mid-forced-blood-moon can't reset the timer (which let a forced blood moon be extended
+      818 +        // indefinitely by restarting before it expired).
+      819 +        forcedBloodMoonStartTime = bloodMoonDataConfig.getLong("bloodmoon.forced-start-time", -1);
+      820 +        forcedBloodMoonDuration = bloodMoonDataConfig.getLong("bloodmoon.forced-duration-minutes", -1);
+      821              getLogger().info("Loaded persisted blood moon from BloodMoonData.yml - day " + persistedBloodMoonDay);
+      822              debugLog("Blood moon persistence: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay + ", forced=" + forcedBloodMoon);
+      823          } else {
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 3 lines
+      836              bloodMoonDataConfig.set("bloodmoon.persisted", bloodMoonPersisted);
+      837              bloodMoonDataConfig.set("bloodmoon.persisted-day", persistedBloodMoonDay);
+      838              bloodMoonDataConfig.set("bloodmoon.forced", forcedBloodMoon);
+      839 +            // Bug C6 fix: persist the forced blood moon anchor + duration alongside the flags.
+      840 +            bloodMoonDataConfig.set("bloodmoon.forced-start-time", forcedBloodMoonStartTime);
+      841 +            bloodMoonDataConfig.set("bloodmoon.forced-duration-minutes", forcedBloodMoonDuration);
+      842              bloodMoonDataConfig.save(bloodMoonDataFile);
+      843
+      844              debugLog("Saved blood moon data to BloodMoonData.yml: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay + ", forced=" + forcedBloodMoon);
+
+● C6 done. Now M1 — add the per-horde cap config key and apply it. First config.yml:
+
+● Update(src\main\resources\config.yml)
+  ⎿  Added 1 line
+      131    spawn-radius: 35             # Blocks around player
+      132    base-horde-size: 6           # Base zombies per horde
+      133    horde-variance: 4            # Random +0 to +4 zombies
+      134 +  max-single-horde-size: 30    # Hard cap on one player's horde per spawn cycle (after blood moon/scent multipliers)
+      135    day-spawn-chance: 0.02
+      136    day-horde-size: 2
+      137    day-horde-variance: 2      # 2% chance to spawn during day
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 7 lines
+      1370          // Apply multiplier BEFORE calculating final amount
+      1371          int finalHordeSize = (int) ((baseAmount + ThreadLocalRandom.current().nextInt(safeVariance + 1)) * multiplier);
+      1372
+      1373 +        // Bug M1 fix: cap a single player's horde here, BEFORE the spawn loop. The blood moon ×
+      1374 +        // scent multipliers could push this to the global max-total-zombies (e.g. 300), and that
+      1375 +        // loop runs per eligible player per spawner tick — thousands of getHighestBlockAt() calls
+      1376 +        // that tank TPS independent of actual entity count. The global cap stays as a secondary guard.
+      1377 +        int maxSingleHorde = getConfig().getInt("apocalypse-settings.max-single-horde-size", 30);
+      1378 +        finalHordeSize = Math.min(finalHordeSize, maxSingleHorde);
+      1379 +
+      1380          // Cap with max-total-zombies instead of scent-system.spawn-cap
+      1381          int spawnCap = getConfig().getInt("performance.max-total-zombies", 300);
+      1382          finalHordeSize = Math.min(finalHordeSize, spawnCap);
+
+● M3 — gate VETERAN transform on a player kill:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 4 lines, removed 2 lines
+      644          // Fixed: VETERAN transformation - check if a zombie killed the entity
+      645          Entity deadEntity = event.getEntity();
+      646
+      647 -        // Check if the entity that died was damaged by a zombie
+      648 -        if (deadEntity.getLastDamageCause() instanceof EntityDamageByEntityEvent damageEvent) {
+      647 +        // Bug M3 fix: only a PLAYER kill should promote a zombie to VETERAN. Without this gate,
+      648 +        // any entity killed near a zombie (farm animals, armor stands) triggered the upgrade,
+      649 +        // letting players cheaply mass-promote a horde by herding passive mobs into it.
+      650 +        if (deadEntity instanceof Player && deadEntity.getLastDamageCause() instanceof EntityDamageByEntityEvent damageEvent) {
+      651              Entity damager = damageEvent.getDamager();
+      652
+      653              // If a zombie killed this entity, transform it to veteran
+
+● M4 — surface-validate /zspawn HORDE:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 10 lines, removed 2 lines
+      1654
+      1655              if (typeArg.equals("HORDE")) {
+      1656                  // Spawn mixed horde
+      1657 +                int hordeSpawned = 0;
+      1658                  for (int i = 0; i < count; i++) {
+      1659                      Location spawnLoc = player.getLocation().add(
+      1660                              ThreadLocalRandom.current().nextDouble(-radius, radius),
+     ...
+      1664
+      1665                      if (isInsideClaim(spawnLoc)) continue;
+      1666
+      1666 -                    Zombie zombie = (Zombie) player.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
+      1667 +                    // Bug M4 fix: snap to a valid surface instead of spawning at the player's raw
+      1668 +                    // Y. On non-flat terrain the old code buried/suffocated zombies inside hills or
+      1669 +                    // dropped them into the void. Skip the slot if no valid surface is found.
+      1670 +                    Location surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
+      1671 +                    if (surface == null) continue;
+      1672 +
+      1673 +                    player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
+      1674                      // Type will be assigned via spawn event
+      1675 +                    hordeSpawned++;
+      1676                  }
+      1669 -                sender.sendMessage("§aSpawned horde of " + count + " zombies!");
+      1677 +                sender.sendMessage("§aSpawned horde of " + hordeSpawned + " zombies!");
+      1678                  return true;
+      1679              }
+      1680
+
+● M5 — both blood moon commands should target the first enabled world:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 11 lines, removed 1 line
+      1512              }
+      1513
+      1514              if (Bukkit.getWorlds().isEmpty()) return true;
+      1515 -            World world = Bukkit.getWorlds().get(0);
+      1515 +            // Bug M5 fix: use the first ENABLED world, not getWorlds().get(0), which on
+      1516 +            // Multiverse/BetterRTP is often a lobby/temp world. setTime() on the wrong world
+      1517 +            // left the actual gameplay world in daytime while the blood moon logic ran elsewhere.
+      1518 +            World world = Bukkit.getWorlds().stream()
+      1519 +                    .filter(this::isWorldEnabled)
+      1520 +                    .findFirst()
+      1521 +                    .orElse(null);
+      1522 +            if (world == null) {
+      1523 +                sender.sendMessage("§cNo enabled world is currently loaded.");
+      1524 +                return true;
+      1525 +            }
+      1526
+      1527              // CRITICAL FIX: Parse duration argument
+      1528              int duration = bloodMoonForceDuration; // Default from config
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 9 lines, removed 1 line
+      1595
+      1596                  // CRITICAL FIX: Set time to day to prevent immediate restart
+      1597                  if (Bukkit.getWorlds().isEmpty()) return true;
+      1598 -                World world = Bukkit.getWorlds().get(0);
+      1598 +                // Bug M5 fix: target the first ENABLED world, not getWorlds().get(0).
+      1599 +                World world = Bukkit.getWorlds().stream()
+      1600 +                        .filter(this::isWorldEnabled)
+      1601 +                        .findFirst()
+      1602 +                        .orElse(null);
+      1603 +                if (world == null) {
+      1604 +                    sender.sendMessage("§cNo enabled world is currently loaded.");
+      1605 +                    return true;
+      1606 +                }
+      1607                  world.setTime(1000); // Set to day time
+      1608                  sender.sendMessage("§7Time set to day to prevent restart.");
+      1609
+
+● M6 — guard expireImmunity against the double-fire:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 5 lines
+      915      private void expireImmunity(Player player, String expiredMessageKey) {
+      916          UUID uuid = player.getUniqueId();
+      917
+      918 +        // Bug M6 fix: the bossbar task (every 5 ticks) and the check task (every 20 ticks) can
+      919 +        // both hit the expiry edge on the same tick. Bail if this player is no longer immune so
+      920 +        // the "expired" message and health restore only happen once.
+      921 +        if (!immunePlayers.contains(uuid)) return;
+      922 +
+      923          if (originalHealth.containsKey(uuid) && player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+      924              double originalMaxHealth = originalHealth.get(uuid);
+      925              player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(originalMaxHealth);
+
+● All 11 edits are in. Let me mark the tasks complete and compile to catch any errors.
+
+● Bash(cd "C:/Users/xdele/OneDrive/Desktop/Zombpocalypse" && mvn -q -DskipTests compile 2>&1 | tail -40)
+  ⎿  [ERROR] COMPILATION ERROR :
+     [ERROR] /C:/Users/xdele/OneDrive/Desktop/Zombpocalypse/src/main/java/com/deleted/zombpocalypse/Zombpocalypse.java:[825,11] illegal start of type
+     [ERROR] /C:/Users/xdele/OneDrive/Desktop/Zombpocalypse/src/main/java/com/deleted/zombpocalypse/Zombpocalypse.java:[831,13] unnamed classes are a preview feature and are disabled by default.
+     … +16 lines (ctrl+o to expand)
+  ⎿  (timeout 5m)
+  ⎿  Allowed by auto mode classifier
+
+● Brace imbalance somewhere before line 825. Let me look at the blood moon load/save region:
+
+  Read 1 file (ctrl+o to expand)
+
+● My C6 edit dropped the if (bloodMoonPersisted) { line. Let me restore it:
+
+● Update(src\main\java\com\deleted\zombpocalypse\Zombpocalypse.java)
+  ⎿  Added 2 lines
+      820          // indefinitely by restarting before it expired).
+      821          forcedBloodMoonStartTime = bloodMoonDataConfig.getLong("bloodmoon.forced-start-time", -1);
+      822          forcedBloodMoonDuration = bloodMoonDataConfig.getLong("bloodmoon.forced-duration-minutes", -1);
+      823 +
+      824 +        if (bloodMoonPersisted) {
+      825              getLogger().info("Loaded persisted blood moon from BloodMoonData.yml - day " + persistedBloodMoonDay);
+      826              debugLog("Blood moon persistence: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay + ", forced=" + forcedBloodMoon);
+      827          } else {
+
+● Bash(cd "C:/Users/xdele/OneDrive/Desktop/Zombpocalypse" && mvn -q -DskipTests compile 2>&1 | tail -30)
+  ⎿  (No output)
+  ⎿  (timeout 5m)
+  ⎿  Allowed by auto mode classifier
+
+● Compiles cleanly. All 12 Critical + Major bugs are fixed — no features added, no refactors. Everything landed in Zombpocalypse.java except the one config key in config.yml.
+
+  Summary
+
+  Critical
+  - C1 — onEntitySpawn now returns early when isPluginSpawning is set, so plugin-spawned zombies skip the mob-list gate and the duplicate assignZombieType roll. (This also resolves M2 — the silent whitelist
+  cancellation.)
+  - C2 — performanceWatchdog.start()/.reload() now run after startSpawnerTask() in both onEnable and /zreload, so the cancelTasks(this) inside startSpawnerTask no longer kills the TPS monitor, entity culling,
+  and LOD tasks.
+  - C3 — onProjectileHit now matches the actual projectile (LlamaSpit, not Snowball) and reads ACID_SPIT_KEY/BYTE instead of ZOMBIE_TYPE_KEY/STRING. The Spitter's poison now applies. (Both the type check and
+  the key were wrong — fixing only the key wouldn't have worked.)
+  - C4 — Jump scent now triggers on the on-ground → airborne edge using a new playerWasOnGround map (cleaned up on quit), instead of the inverted !isOnGround() guard that fired throughout every jump.
+  - C5 — startBloodMoonTask calls removeAll() on the old bossbar before replacing it, so reloads no longer stack orphaned bars.
+  - C6 — forced-start-time and forced-duration-minutes are now persisted/loaded in BloodMoonData.yml, so a restart can't re-anchor a forced blood moon's timer.
+
+  Major
+  - M1 — New apocalypse-settings.max-single-horde-size (default 30) caps a single player's horde before the spawn loop; the global max-total-zombies stays as a secondary guard.
+  - M3 — VETERAN promotion now requires deadEntity instanceof Player.
+  - M4 — /zspawn HORDE runs each location through getSurfaceSpawnLocation() and skips invalid slots; the message reports the actually-spawned count.
+  - M5 — /forcebloodmoon and /stopbloodmoon target the first enabled world instead of getWorlds().get(0).
+  - M6 — expireImmunity bails if the player is no longer in immunePlayers, preventing the duplicate "expired" message.
+
+  Verified with mvn compile (clean). I haven't committed anything — let me know if you'd like that, or want to move on to the Moderate/Minor categories.
+
+✻ Baked for 9m 46s

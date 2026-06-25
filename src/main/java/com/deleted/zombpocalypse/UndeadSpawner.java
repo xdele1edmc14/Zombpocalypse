@@ -224,9 +224,24 @@ public final class UndeadSpawner {
         World world = target.getWorld();
         if (world == null) return null;
 
-        Block surfaceBlock = world.getHighestBlockAt(target);
-        if (!isValidSurface(surfaceBlock)) return null;
-        return surfaceBlock.getLocation().add(0.5, 1.0, 0.5);
+        // Bug fix: getHighestBlockAt() returns the single top block of the column, which in
+        // forests/jungles/swamps is leaves, and in tall-grass/flower/snow terrain is the plant —
+        // none of which pass isValidSurface(). That made every spawn attempt return null wherever
+        // /rtp dropped the player into natural (non-cleared) terrain, producing zero spawns, while
+        // the cleared /mvtp world-spawn worked. Scan downward from the top to the first real
+        // standing surface so we land on the ground beneath the canopy instead of giving up.
+        int topY = world.getHighestBlockAt(target).getY();
+        int x = target.getBlockX();
+        int z = target.getBlockZ();
+        int floorY = Math.max(world.getMinHeight(), topY - 48); // don't tunnel arbitrarily deep
+
+        for (int y = topY; y >= floorY; y--) {
+            Block candidate = world.getBlockAt(x, y, z);
+            if (isValidSurface(candidate)) {
+                return candidate.getLocation().add(0.5, 1.0, 0.5);
+            }
+        }
+        return null;
     }
 
     private long packBlockKey(World world, Block block) {

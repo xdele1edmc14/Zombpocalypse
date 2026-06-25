@@ -7,6 +7,12 @@ enabled-worlds:
   - world_nether
   - world_the_end
 
+# Lobby worlds: zombie spawning and MythicMobs boss spawning are disabled here,
+# but the blood moon bossbar and all other plugin systems still work normally.
+# These worlds do NOT need to be in enabled-worlds.
+lobby-worlds:
+  - lobby
+
 hooks:
   griefprevention:
     enabled: true
@@ -125,6 +131,7 @@ apocalypse-settings:
   spawn-radius: 35             # Blocks around player
   base-horde-size: 6           # Base zombies per horde
   horde-variance: 4            # Random +0 to +4 zombies
+  max-single-horde-size: 30    # Hard cap on one player's horde per spawn cycle (after blood moon/scent multipliers)
   day-spawn-chance: 0.02 
   day-horde-size: 2
   day-horde-variance: 2      # 2% chance to spawn during day
