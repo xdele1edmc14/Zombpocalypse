@@ -51,6 +51,11 @@ public class xApocalypseListener implements Listener {
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
+        // Free a MythicMobs Mutant cap slot the moment any entity dies (cheap no-op for non-mutants).
+        // Closes the cap-leak where a killed Mutant whose chunk unloaded before pruning kept its slot
+        // forever, eventually filling max-global-cap with ghosts and silently stopping all spawns.
+        plugin.getMythicMobsManager().notifyEntityDeath(event.getEntity().getUniqueId());
+
         if (event.getEntity() instanceof Zombie zombie) {
             xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
             if (type == xApocalypseUtils.ZombieType.BURSTER) {
@@ -65,6 +70,10 @@ public class xApocalypseListener implements Listener {
 
             // Reset fire ticks to prevent post-death burning
             zombie.setFireTicks(0);
+
+            // Rare configurable Zombie Guts drop. Inside the Zombie block (and thus BEFORE the
+            // scent-system early-return below) so it works even when the scent system is disabled.
+            immunity.maybeDropZombieGuts(event, zombie);
         }
 
         // NOTE: parity-preserved quirk — when the scent system is disabled this early return
@@ -229,6 +238,12 @@ public class xApocalypseListener implements Listener {
     @EventHandler
     public void onPlayerConsume(PlayerItemConsumeEvent event) {
         immunity.handleGutsConsume(event);
+    }
+
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        // Primary Zombie Guts activation — a right-click works regardless of hunger level / game mode.
+        immunity.handleGutsInteract(event);
     }
 
     @EventHandler

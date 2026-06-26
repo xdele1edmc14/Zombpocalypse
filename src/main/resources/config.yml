@@ -123,7 +123,12 @@ zombie-settings:
   allow-baby-zombies: false
   allow-zombie-villagers: true
   zombie-guts:
-    enabled: true  # Immunity item
+    enabled: true  # Master switch: consume to ignore zombies 10 min (reduces max health to 5 hearts)
+    # Rare chance for a slain zombie to drop Zombie Guts (requires the master switch above).
+    drop:
+      enabled: true              # Toggle the rare drop on/off
+      chance: 0.02               # Chance per eligible zombie death (0.0-1.0). 0.02 = 2% (rare)
+      require-player-kill: true  # Only drop when a player lands the killing blow (anti-farm)
 
 # Spawning
 apocalypse-settings:
@@ -155,7 +160,7 @@ bloodmoon:
     speed: 1.1
     horde-size: 1.5
   # CRITICAL FIX: Add force blood moon configuration
-  force-duration-minutes: 10  # Duration for /forcebloodmoon command
+  force-duration-minutes: 10  # Duration for /xa forcebloodmoon command
 
 # Performance & Safety Guards
 performance:

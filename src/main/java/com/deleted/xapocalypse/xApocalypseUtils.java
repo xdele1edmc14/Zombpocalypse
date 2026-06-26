@@ -34,6 +34,8 @@ public class xApocalypseUtils {
     public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("xapocalypse", "last_build");
     // Bug 19 fix: marks a zombie as mid-rise-animation so the LOD system won't call setAI(false) on it
     public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("xapocalypse", "animating");
+    // Marker placed on the Zombie Guts ItemStack so it is identified by PDC rather than display name.
+    public static final NamespacedKey ZOMBIE_GUTS_KEY = new NamespacedKey("xapocalypse", "zombie_guts_item");
 
     public enum ZombieType {
         SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;

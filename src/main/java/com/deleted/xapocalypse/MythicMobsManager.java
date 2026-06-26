@@ -77,7 +77,8 @@ public class MythicMobsManager {
         FileConfiguration cfg = this.plugin.getConfig();
         this.mobType = cfg.getString("mythicmobs.integration.mob-type", "The_Mutant");
         this.maxGlobalCap = cfg.getInt("mythicmobs.integration.max-global-cap", 15);
-        // Bug B fix: raised from 0.05 (5%) to 0.20 (20%) so Mutants actually spawn during Blood Moon
+        // Fallback default used only if the key is absent. NOTE: the shipped config.yml sets this
+        // explicitly (0.05), so on a configured server the on-disk value is what actually applies.
         this.spawnChance = cfg.getDouble("mythicmobs.integration.spawn-chance", 0.20);
         this.spawnRadiusMin = cfg.getInt("mythicmobs.integration.spawn-radius.min", 20);
         this.spawnRadiusMax = cfg.getInt("mythicmobs.integration.spawn-radius.max", 40);
@@ -85,18 +86,40 @@ public class MythicMobsManager {
     }
 
     public void onBloodMoonStart() {
-        if (this.mythicMobsEnabled) {
-            this.bloodMoonMissCount = 0; // reset miss counter before starting a new loop
+        if (!this.mythicMobsEnabled) return;
+        this.bloodMoonMissCount = 0; // reset miss counter before starting a new loop
+
+        // Idempotency: onBloodMoonStart can be re-signalled without an intervening end — e.g. an
+        // admin /xa forcebloodmoon over an already-active natural blood moon, or the onEnable
+        // resume path. Spawn the guaranteed Mutant only on a genuine start (loop not already
+        // running), or we'd spawn a duplicate boss + double broadcast and burn a global-cap slot.
+        // Using the live loop state as the signal is self-healing — if the miss-counter stopped the
+        // loop, a later start correctly counts as fresh.
+        boolean alreadyRunning = this.spawnTickTask != null && !this.spawnTickTask.isCancelled();
+        if (alreadyRunning) {
+            this.log.info("[MythicMobs] Blood Moon re-signalled while spawn loop already active — skipping duplicate guaranteed Mutant.");
+        } else {
             this.log.info("[MythicMobs] Blood Moon started — spawning guaranteed Mutant.");
             this.spawnGuaranteedMutant();
-            this.startSpawnTickLoop();
         }
+        this.startSpawnTickLoop();
     }
 
     public void onBloodMoonEnd() {
         this.stopSpawnTickLoop();
         this.pruneDeadMutants();
         this.log.info("[MythicMobs] Blood Moon ended. Mutants still alive: " + this.activeMutants.size());
+    }
+
+    /**
+     * Restarts ONLY the periodic spawn tick loop (no guaranteed Mutant) — used after the scheduler's
+     * cancelTasks() wipes it, e.g. across a /xa reload during an active blood moon. Without this the
+     * periodic Mutant spawns would stay dead until the next blood moon.
+     */
+    public void resumeSpawnLoop() {
+        if (!this.mythicMobsEnabled) return;
+        this.bloodMoonMissCount = 0;
+        this.startSpawnTickLoop();
     }
 
     public int spawnMutantCommand(Player player, int count, int radius) {
@@ -212,15 +235,12 @@ public class MythicMobsManager {
                 Entity entity = this.mmAPI.spawnMythicMob(this.mobType, loc);
                 if (entity != null) {
                     this.activeMutants.add(entity.getUniqueId());
-                    xApocalypse var10000 = this.plugin;
-                    String var5 = this.formatLoc(loc);
-                    var10000.debugLog("[MythicMobs] Spawned at " + var5);
+                    this.plugin.debugLog("[MythicMobs] Spawned at " + this.formatLoc(loc));
                 }
 
                 return entity;
             } catch (Exception e) {
-                String var10001 = this.mobType;
-                this.log.warning("[MythicMobs] Failed to spawn " + var10001 + ": " + e.getMessage());
+                this.log.warning("[MythicMobs] Failed to spawn " + this.mobType + ": " + e.getMessage());
                 return null;
             }
         }
@@ -305,6 +325,16 @@ public class MythicMobsManager {
             Entity entity = Bukkit.getEntity(uuid);
             return entity != null && entity.isDead();
         });
+    }
+
+    /**
+     * Frees a Mutant's global-cap slot the instant it dies. Called from the death listener for
+     * every entity death (a cheap Set.remove for non-mutants). This closes the cap-leak where
+     * pruneDeadMutants could never reclaim a UUID whose chunk unloaded before it was seen dead —
+     * over several blood moons that filled max-global-cap with ghosts and silently stopped spawns.
+     */
+    public void notifyEntityDeath(UUID uuid) {
+        this.activeMutants.remove(uuid);
     }
 
     private void broadcastBloodMoonSpawn(Player nearPlayer) {

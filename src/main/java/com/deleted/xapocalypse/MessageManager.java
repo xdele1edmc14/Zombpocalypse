@@ -9,6 +9,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,9 +50,30 @@ public class MessageManager {
         }
 
         messages = YamlConfiguration.loadConfiguration(messagesFile);
+
+        // Fall back to the defaults bundled in the jar. Without this, any key the admin's
+        // (possibly older) messages.yml is missing renders in-game as "Missing message: <path>".
+        // Registering the jar copy as the config's defaults lets every shipped key resolve to its
+        // bundled value even when the on-disk file predates it — so plugin updates never require a
+        // manual messages.yml delete. (This mirrors what Bukkit already does for config.yml.)
+        applyBundledDefaults();
+
         cache.clear(); // Clear cache on reload
 
         plugin.getLogger().info("Loaded " + countKeys(messages) + " message keys with MiniMessage support");
+    }
+
+    /** Registers the jar's bundled messages.yml as the in-memory default source (not written to disk). */
+    private void applyBundledDefaults() {
+        try (InputStream defStream = plugin.getResource("messages.yml")) {
+            if (defStream != null) {
+                YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                        new InputStreamReader(defStream, StandardCharsets.UTF_8));
+                messages.setDefaults(defaults);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Could not load bundled messages.yml defaults: " + e.getMessage());
+        }
     }
 
     private int countKeys(FileConfiguration config) {
@@ -65,7 +89,12 @@ public class MessageManager {
         String message = cache.get(path);
 
         if (message == null) {
-            String rawMessage = messages.getString(path, "&cMissing message: " + path);
+            // Single-arg getString consults the bundled defaults registered in applyBundledDefaults();
+            // only fall back to the marker when the key is absent from BOTH the on-disk file and the jar.
+            String rawMessage = messages.getString(path);
+            if (rawMessage == null) {
+                rawMessage = "&cMissing message: " + path;
+            }
 
             // Parse the message (auto-detects MiniMessage vs Legacy)
             message = parseMessage(rawMessage);
@@ -128,7 +157,10 @@ public class MessageManager {
      * Get raw Component for advanced usage (titles, action bars, etc.)
      */
     public Component getComponent(String path, Object... args) {
-        String rawMessage = messages.getString(path, "&cMissing message: " + path);
+        String rawMessage = messages.getString(path);
+        if (rawMessage == null) {
+            rawMessage = "&cMissing message: " + path;
+        }
 
         // Replace placeholders first
         if (args.length > 0) {
@@ -154,6 +186,7 @@ public class MessageManager {
     public void reload() {
         try {
             messages = YamlConfiguration.loadConfiguration(messagesFile);
+            applyBundledDefaults();
             cache.clear();
             plugin.getLogger().info("Messages reloaded successfully with MiniMessage support");
         } catch (Exception e) {

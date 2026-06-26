@@ -2,6 +2,7 @@ package com.deleted.xapocalypse;
 
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -112,19 +113,13 @@ public class xApocalypse extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new xApocalypseListener(this), this);
 
-        // Register commands
+        // Register the single root command. The /xa and /zombie aliases are declared in
+        // plugin.yml, so wiring "xapocalypse" wires all three. Sub-commands are dispatched
+        // inside xApocalypseCommand (help, reload, item, spawn, forcebloodmoon|fbm, stopbloodmoon|sbm).
         xApocalypseCommand commandExecutor = new xApocalypseCommand(this);
-        getCommand("zreload").setExecutor(commandExecutor);
-        getCommand("help").setExecutor(commandExecutor);
-        getCommand("zitem").setExecutor(commandExecutor);
-        getCommand("forcebloodmoon").setExecutor(commandExecutor);
-        getCommand("stopbloodmoon").setExecutor(commandExecutor);
-        getCommand("zspawn").setExecutor(commandExecutor);
-
-        // Register tab completers
         xApocalypseTabCompleter tabCompleter = new xApocalypseTabCompleter();
-        getCommand("zspawn").setTabCompleter(tabCompleter);
-        getCommand("zitem").setTabCompleter(tabCompleter);
+        getCommand("xapocalypse").setExecutor(commandExecutor);
+        getCommand("xapocalypse").setTabCompleter(tabCompleter);
 
         startSpawnerTask();
         horde.startBuilderCleanupTask();
@@ -134,7 +129,25 @@ public class xApocalypse extends JavaPlugin {
         // the cancelTasks(this) call inside startSpawnerTask().
         performanceWatchdog.start();
 
-        getLogger().info("[xApocalypse v1.0.0] xApocalypse has started! Brains...");
+        printStartupBanner();
+    }
+
+    /**
+     * Prints a small, sleek ASCII banner to the console on startup: an "xA" monogram plus the
+     * brand line. Pure ASCII + legacy colour codes only, so it renders cleanly on every console
+     * encoding (no box-drawing/Unicode that mangles on a Windows cp1252 console).
+     */
+    private void printStartupBanner() {
+        String[] banner = {
+                "",
+                "&2 \\ /   &c /\\      &a&lxApocalypse  &r&7v" + getDescription().getVersion(),
+                "&2  X    &c/--\\     &7Hardcore zombie horde survival",
+                "&2 / \\   &c/  \\     &8by xDele1ed &7- brains...",
+                ""
+        };
+        for (String line : banner) {
+            getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', line));
+        }
     }
 
     @Override
@@ -180,7 +193,7 @@ public class xApocalypse extends JavaPlugin {
         new HordeSpawnerTask(this).runTaskTimer(this, 0L, rate);
     }
 
-    /** Full reload pipeline shared by /zreload. Mirrors the original onCommand("zreload") sequence. */
+    /** Full reload pipeline shared by /xa reload. Mirrors the original onCommand("reload") sequence. */
     public void reloadAll() {
         Bukkit.getScheduler().cancelTasks(this);
         reloadConfig();
@@ -197,6 +210,17 @@ public class xApocalypse extends JavaPlugin {
         // are not killed by the cancelTasks(this) call inside startSpawnerTask().
         if (performanceWatchdog != null) {
             performanceWatchdog.reload();
+        }
+
+        // The cancelTasks() calls above also kill the MythicMobs periodic spawn loop. If a blood
+        // moon is active across this /xa reload, restart that loop (no duplicate guaranteed Mutant)
+        // so periodic Mutant spawns continue — otherwise they stay dead until the next blood moon.
+        // Mirrors the onEnable resume path.
+        if (mythicMobsManager != null) {
+            World bmWorld = Bukkit.getWorlds().stream().filter(this::isWorldEnabled).findFirst().orElse(null);
+            if (bmWorld != null && isBloodMoonActive(bmWorld)) {
+                mythicMobsManager.resumeSpawnLoop();
+            }
         }
     }
 

@@ -15,16 +15,20 @@ player-not-found: "&cPlayer not found: {0}"
 # Commands
 commands:
   no-permission: "&cYou don't have permission to use this command."
+  unknown: "&cUnknown sub-command: &f{0}&c. Try &f/xa help&c."
   help:
-    header: "&4&l--- xApocalypse v1.0.0 ---"
-    author: "&aBy xDele1ed"
-    reload: "&b/za reload&7: Reload config and language"
-    spawn: "&b/zspawn <type|horde> [count] [radius]&7: Spawn zombies"
-    item: "&b/zitem <item>&7: Get special items"
-    bloodmoon: "&b/forcebloodmoon&7: Force Blood Moon event"
+    title: "&8&m       &r &c&lxApocalypse &r&7v1.0.0 &8&m       "
+    author: "&7Created by &fxDele1ed"
+    help: "&c/xa help &8» &7Show this command list"
+    spawn: "&c/xa spawn <type|horde> [count] [radius] &8» &7Spawn zombies"
+    item: "&c/xa item <item> [player] &8» &7Get special items"
+    forcebloodmoon: "&c/xa forcebloodmoon [minutes] &8(&7fbm&8) &8» &7Force a Blood Moon"
+    stopbloodmoon: "&c/xa stopbloodmoon &8(&7sbm&8) &8» &7End the Blood Moon"
+    reload: "&c/xa reload &8» &7Reload config and language files"
+    footer: "&8Roots: &7/xa &8• &7/xapocalypse &8• &7/zombie"
 
   spawn:
-    usage: "&cUsage: /zspawn <type|horde> [count] [radius]"
+    usage: "&cUsage: /xa spawn <type|horde> [count] [radius]"
     invalid-type: "&cInvalid zombie type: {0}"
     invalid-number: "&cInvalid number: {0}"
     success-horde: "&aSpawned horde of {0} zombies!"
@@ -32,7 +36,7 @@ commands:
     blocked-claim: "&cCannot spawn in protected area."
 
   item:
-    usage: "&cUsage: /zitem <item> [player]"
+    usage: "&cUsage: /xa item <item> [player]"
     unknown: "&cUnknown item: {0}"
     received: "&a[!] &7You received: &f{0}&7!"
     given: "&a[!] &7Gave &f{1}&7 to &f{0}&7!"

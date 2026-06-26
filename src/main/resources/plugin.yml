@@ -7,37 +7,23 @@ description: A hardcore zombie horde plugin with advanced AI, Blood Moons, and G
 
 softdepend: [GriefPrevention, MythicMobs]
 
+# Everything lives under one root command. /xa, /xapocalypse and /zombie are interchangeable.
+#   /xa help                                     show the command list
+#   /xa reload                                   reload config + language
+#   /xa item <item> [player]                     give a special item
+#   /xa spawn <type|horde> [count] [radius]      spawn zombies
+#   /xa forcebloodmoon [minutes]   (alias fbm)   force a blood moon
+#   /xa stopbloodmoon              (alias sbm)   end a blood moon
 commands:
-  zreload:
-    description: Reloads xApocalypse configuration
-    usage: /zreload
-    permission: xapocalypse.admin
-  zitem:
-    description: Gives special plugin items
-    usage: /zitem <item> [player]
-    permission: xapocalypse.admin
-  forcebloodmoon:
-    description: Force a blood moon for a duration
-    usage: /forcebloodmoon [minutes]
-    permission: xapocalypse.admin
-    aliases: [fbm]
-  stopbloodmoon:
-    description: Stop an active blood moon
-    usage: /stopbloodmoon
-    permission: xapocalypse.admin
-    aliases: [sbm]
-  zspawn:
-    description: Spawn zombies or hordes
-    usage: /zspawn <type|horde> [count] [radius]
-    permission: xapocalypse.command.zspawn
-  help:
-    description: Show xApocalypse help
-    usage: /help
+  xapocalypse:
+    description: Root command for xApocalypse — zombies, blood moons, items and config.
+    usage: /xa help
+    aliases: [xa, zombie]
 
 permissions:
   xapocalypse.admin:
-    description: Access to all admin commands
+    description: Access to all admin sub-commands (reload, item, forcebloodmoon, stopbloodmoon)
     default: op
-  xapocalypse.command.zspawn:
-    description: Ability to spawn custom zombies
+  xapocalypse.command.spawn:
+    description: Ability to spawn custom zombies via /xa spawn
     default: op

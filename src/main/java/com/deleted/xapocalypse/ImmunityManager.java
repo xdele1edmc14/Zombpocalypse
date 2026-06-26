@@ -12,8 +12,14 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
@@ -23,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Owns the entire Zombie-Guts Immunity subsystem: the immunity state maps, the data.yml
@@ -359,87 +366,174 @@ public class ImmunityManager {
         }
     }
 
+    // ==================================================================================
+    // ZOMBIE GUTS — item factory, identity, activation, and rare drop
+    // ==================================================================================
+
     /**
-     * Handles a Zombie-Guts consumption. Encapsulates the original onPlayerConsume body, including
-     * the zombie-guts-enabled gate and event cancellation.
+     * Single source of truth for the Zombie Guts ItemStack. Used by the /xa item command and the
+     * rare death-drop, and recognised back by {@link #isZombieGutsItem}. The item carries a PDC
+     * marker key so identity survives display-name / MiniMessage changes.
+     */
+    public ItemStack createZombieGutsItem(int amount) {
+        ItemStack guts = new ItemStack(Material.ROTTEN_FLESH, Math.max(1, amount));
+        ItemMeta meta = guts.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(messageManager.get("immunity.item-name"));
+            meta.setLore(messageManager.getList("immunity.item-lore"));
+            meta.getPersistentDataContainer().set(xApocalypseUtils.ZOMBIE_GUTS_KEY, PersistentDataType.BYTE, (byte) 1);
+            guts.setItemMeta(meta);
+        }
+        return guts;
+    }
+
+    /** True if the stack is a Zombie Guts item — PDC marker first, legacy display-name match as a fallback. */
+    public boolean isZombieGutsItem(ItemStack item) {
+        if (item == null || item.getType() != Material.ROTTEN_FLESH) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        if (meta.getPersistentDataContainer().has(xApocalypseUtils.ZOMBIE_GUTS_KEY, PersistentDataType.BYTE)) return true;
+        return meta.hasDisplayName() && meta.getDisplayName().equals(messageManager.get("immunity.item-name"));
+    }
+
+    /**
+     * Primary activation path: a right-click. BUGFIX — the old code only granted immunity from
+     * {@link PlayerItemConsumeEvent}, which never fires when the hunger bar is full or in Creative
+     * mode (Zombie Guts is rotten flesh — normal food), so eating it often did nothing at all and
+     * hearts never dropped to 5. Driving activation off a right-click makes it independent of
+     * hunger level and game mode.
+     */
+    public void handleGutsInteract(PlayerInteractEvent event) {
+        if (!plugin.isZombieGutsEnabled()) return;
+
+        EquipmentSlot hand = event.getHand();
+        if (hand != EquipmentSlot.HAND && hand != EquipmentSlot.OFF_HAND) return;
+
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+
+        // Don't hijack right-clicks on usable blocks (chests, doors, buttons, crafting tables, ...).
+        if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null
+                && event.getClickedBlock().getType().isInteractable()) return;
+
+        // event.getItem() is the item in the hand that fired THIS event, so the main-hand and
+        // off-hand passes are naturally distinguished — only the hand actually holding guts proceeds.
+        // The already-immune guard in grantGutsImmunity makes the once-per-hand double fire a no-op.
+        if (!isZombieGutsItem(event.getItem())) return;
+
+        event.setCancelled(true); // suppress the vanilla eat / any use-on-block
+        grantGutsImmunity(event.getPlayer(), hand);
+    }
+
+    /**
+     * Fallback path for players who still actually eat the item in Survival (hunger not full).
+     * Cancels the consume so vanilla nutrition isn't applied, then routes to the same grant logic.
      */
     public void handleGutsConsume(PlayerItemConsumeEvent event) {
         if (!plugin.isZombieGutsEnabled()) return;
+        if (!isZombieGutsItem(event.getItem())) return;
 
-        ItemStack item = event.getItem();
+        event.setCancelled(true);
         Player player = event.getPlayer();
+        EquipmentSlot hand = isZombieGutsItem(player.getInventory().getItemInMainHand())
+                ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND;
+        grantGutsImmunity(player, hand);
+    }
+
+    /**
+     * Grants Zombie Guts immunity: drops max health to 5 hearts, starts the 10-minute timer +
+     * bossbar, persists state, clears current zombie targets, and consumes one item from {@code hand}.
+     * Shared by both the right-click and the consume path.
+     */
+    private void grantGutsImmunity(Player player, EquipmentSlot hand) {
         UUID uuid = player.getUniqueId();
 
-        if (item.getType() == Material.ROTTEN_FLESH && item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+        if (immunePlayers.contains(uuid)) {
+            player.sendMessage(messageManager.get("immunity.already-immune"));
+            return;
+        }
 
-            String displayName = item.getItemMeta().getDisplayName();
+        // BUGFIX: this null check used to run AFTER originalHealth/immunePlayers were already
+        // mutated, so a null world would leave the player permanently flagged immune with no
+        // bossbar and no removal task.
+        if (player.getWorld() == null) return;
 
-            if (displayName.equals(messageManager.get("immunity.item-name"))) {
-                event.setCancelled(true);
+        double maxHealth = 10.0;
+        if (player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+            originalHealth.put(uuid, player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue());
 
-                if (immunePlayers.contains(uuid)) {
-                    player.sendMessage(messageManager.get("immunity.already-immune"));
-                    return;
-                }
+            player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(maxHealth);
+            player.setHealth(Math.min(player.getHealth(), maxHealth));
+        }
 
-                // BUGFIX: this null check used to run AFTER originalHealth/immunePlayers
-                // were already mutated below, so a null world would leave the player
-                // permanently flagged immune with no bossbar and no removal task.
-                if (player.getWorld() == null) return;
+        immunePlayers.add(uuid);
 
-                double maxHealth = 10.0;
-                if (player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
-                    originalHealth.put(uuid, player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue());
+        // BUGFIX: was player.getWorld().getFullTime() + IMMUNITY_DURATION_TICKS — world full-time
+        // is warped by world.setTime() calls in the blood moon system (forced/natural start, stop,
+        // and the night-time correction), which is what made this timer freeze or jump.
+        long endTime = System.currentTimeMillis() + IMMUNITY_DURATION_MILLIS;
+        immunityEndTime.put(uuid, endTime);
 
-                    player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(maxHealth);
-                    player.setHealth(Math.min(player.getHealth(), maxHealth));
-                }
+        BossBar bar = Bukkit.createBossBar(
+                messageManager.get("immunity.bossbar", "10:00"),
+                BarColor.GREEN,
+                BarStyle.SOLID
+        );
+        bar.addPlayer(player);
+        immunityBossBars.put(uuid, bar);
 
-                immunePlayers.add(uuid);
+        scheduleImmunityRemoval(player, IMMUNITY_DURATION_TICKS);
 
-                // BUGFIX: was player.getWorld().getFullTime() + IMMUNITY_DURATION_TICKS —
-                // world full-time is warped by world.setTime() calls in the blood moon
-                // system (forced/natural start, stop, and the night-time correction),
-                // which is what was making this timer freeze or jump to nonsense values.
-                long endTime = System.currentTimeMillis() + IMMUNITY_DURATION_MILLIS;
-                immunityEndTime.put(uuid, endTime);
+        // BUGFIX: persist immediately — a crash or /stop before the player quit used to lose the grant.
+        save();
 
-                BossBar bar = Bukkit.createBossBar(
-                        messageManager.get("immunity.bossbar", "10:00"),
-                        BarColor.GREEN,
-                        BarStyle.SOLID
-                );
-                bar.addPlayer(player);
-                immunityBossBars.put(uuid, bar);
+        player.sendMessage(messageManager.get("immunity.consumed"));
 
-                scheduleImmunityRemoval(player, IMMUNITY_DURATION_TICKS);
-
-                // BUGFIX: this grant was never written to data.yml until the player quit,
-                // reloaded, or the server shut down gracefully. A crash or `/stop` in
-                // between meant the active immunity simply never persisted at all.
-                save();
-
-                player.sendMessage(messageManager.get("immunity.consumed"));
-
-                // Clear all zombies currently targeting this player
-                for (Entity entity : player.getWorld().getEntitiesByClass(Zombie.class)) {
-                    if (entity instanceof Zombie zombie) {
-                        if (zombie.getTarget() != null && zombie.getTarget().equals(player)) {
-                            zombie.setTarget(null);
-                        }
-                    }
-                }
-
-                if (item.getAmount() > 1) {
-                    item.setAmount(item.getAmount() - 1);
-                } else {
-                    if (player.getInventory().getItemInMainHand().equals(item)) {
-                        player.getInventory().setItemInMainHand(null);
-                    } else if (player.getInventory().getItemInOffHand().equals(item)) {
-                        player.getInventory().setItemInOffHand(null);
-                    }
+        // Clear all zombies currently targeting this player
+        for (Entity entity : player.getWorld().getEntitiesByClass(Zombie.class)) {
+            if (entity instanceof Zombie zombie) {
+                if (zombie.getTarget() != null && zombie.getTarget().equals(player)) {
+                    zombie.setTarget(null);
                 }
             }
+        }
+
+        consumeOne(player, hand);
+    }
+
+    /** Removes one Zombie Guts from the given hand (live inventory stack), clearing the slot at 0. */
+    private void consumeOne(Player player, EquipmentSlot hand) {
+        ItemStack inHand = (hand == EquipmentSlot.OFF_HAND)
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
+        if (inHand == null || inHand.getType() == Material.AIR) return;
+
+        if (inHand.getAmount() > 1) {
+            inHand.setAmount(inHand.getAmount() - 1);
+        } else if (hand == EquipmentSlot.OFF_HAND) {
+            player.getInventory().setItemInOffHand(null);
+        } else {
+            player.getInventory().setItemInMainHand(null);
+        }
+    }
+
+    /**
+     * Rolls the configurable rare chance for a slain zombie to drop Zombie Guts, adding it to the
+     * death drops so it flows through vanilla / other-plugin drop handling. Config is read live so
+     * /xa reload takes effect. Called from the death listener BEFORE the scent-system early-return,
+     * so it works even when the scent system is disabled. Defaults match the shipped config.yml.
+     */
+    public void maybeDropZombieGuts(EntityDeathEvent event, Zombie zombie) {
+        if (!plugin.isZombieGutsEnabled()) return;
+        if (!plugin.getConfig().getBoolean("zombie-settings.zombie-guts.drop.enabled", true)) return;
+        if (plugin.getConfig().getBoolean("zombie-settings.zombie-guts.drop.require-player-kill", true)
+                && zombie.getKiller() == null) return;
+
+        double chance = plugin.getConfig().getDouble("zombie-settings.zombie-guts.drop.chance", 0.02);
+        if (chance <= 0.0) return;
+
+        if (ThreadLocalRandom.current().nextDouble() < chance) {
+            event.getDrops().add(createZombieGutsItem(1));
         }
     }
 

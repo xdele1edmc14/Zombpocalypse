@@ -236,7 +236,7 @@ public class BloodMoonManager {
 
     public void startTask() {
         // Bug C5 fix: remove the previous bossbar from all players before replacing the
-        // reference. On /zreload this method runs again; without this, each reload left an
+        // reference. On /xa reload this method runs again; without this, each reload left an
         // orphaned bar stuck in every player's HUD (visible and a memory leak) until restart.
         if (bloodMoonBar != null) {
             bloodMoonBar.removeAll();
@@ -346,7 +346,7 @@ public class BloodMoonManager {
                             bloodMoonBar.removeAll();
                         }
                         // Fix RC2: Gate on (bloodMoonPersisted || forcedBloodMoon).
-                        // /forcebloodmoon sets forcedBloodMoon=true but NOT bloodMoonPersisted=true,
+                        // /xa forcebloodmoon sets forcedBloodMoon=true but NOT bloodMoonPersisted=true,
                         // so the old guard silently skipped onBloodMoonEnd() for every forced blood
                         // moon, permanently orphaning the MM spawn tick loop.
                         if (bloodMoonPersisted || forcedBloodMoon) {
@@ -447,7 +447,7 @@ public class BloodMoonManager {
 
     // === COMMANDS ===
 
-    /** /forcebloodmoon — the world has already been resolved and the duration validated by the command. */
+    /** /xa forcebloodmoon — the world has already been resolved and the duration validated by the command. */
     public void forceBloodMoon(CommandSender sender, World world, int duration) {
         forcedBloodMoon = true;
         forcedBloodMoonStartTime = System.currentTimeMillis(); // CRITICAL FIX: Track start time
@@ -473,7 +473,7 @@ public class BloodMoonManager {
         plugin.getLogger().info("Blood moon force started by " + sender.getName() + " for " + duration + " minutes");
     }
 
-    /** /stopbloodmoon */
+    /** /xa stopbloodmoon */
     public void stopBloodMoon(CommandSender sender) {
         // CRITICAL FIX: Stop blood moon and clean up
         if (bloodMoonPersisted || forcedBloodMoon) {

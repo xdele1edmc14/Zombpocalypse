@@ -18,7 +18,7 @@ Verify zombies only spawn behind the player in a strict 160° rear arc.
 1. **Enable Debug Mode**: Set `debug-mode: true` in config.yml
 2. **Find an Open Area**: Large flat space with minimal obstacles
 3. **Stand Still**: Face a specific direction (North, South, East, or West)
-4. **Force Spawns**: Use `/zspawn horde 10` to spawn zombies
+4. **Force Spawns**: Use `/xa spawn horde 10` to spawn zombies
 5. **Observe Spawn Locations**:
    - Zombies should appear behind you (within 160° rear arc)
    - No zombies should spawn in front or to the sides
@@ -41,7 +41,7 @@ Verify zombies rise from the ground instead of instant teleportation.
 
 ### Test Steps
 1. **Find Suitable Terrain**: Flat ground with no underground blocks
-2. **Force Zombie Spawn**: Use `/zspawn zombie 1`
+2. **Force Zombie Spawn**: Use `/xa spawn zombie 1`
 3. **Observe Animation**:
    - Zombie should spawn 1.5 blocks underground
    - Rise 0.5 blocks per tick over 3 ticks
@@ -73,7 +73,7 @@ Verify TPS-based spawning pause and dynamic zombie caps.
 
 #### 3.2 Dynamic Zombie Caps
 1. **Check Config Settings**: Verify `performance.max-total-zombies: 300`
-2. **Spawn Many Zombies**: Use `/zspawn horde 50` multiple times
+2. **Spawn Many Zombies**: Use `/xa spawn horde 50` multiple times
 3. **Observe Culling**: When count exceeds 300, excess zombies should be removed
 4. **Check Distance Prioritization**: Far zombies should be culled first
 
@@ -100,7 +100,7 @@ Verify TPS-based spawning pause and dynamic zombie caps.
 Verify the simplified zombie creation system works without Builder pattern.
 
 ### Test Steps
-1. **Spawn Various Zombie Types**: Use `/zspawn <type> 1` for each type
+1. **Spawn Various Zombie Types**: Use `/xa spawn <type> 1` for each type
 2. **Verify Type Assignment**: Check nametags show correct zombie class
 3. **Test Random Assignment**: Spawn horde and observe type distribution
 4. **Check Weight System**: Verify rarer types (Tank, Veteran) appear less frequently
@@ -144,7 +144,7 @@ Verify new performance settings work correctly.
 Test all systems working together under realistic conditions.
 
 ### Test Steps
-1. **Start Blood Moon**: Use `/forcebloodmoon` to trigger event
+1. **Start Blood Moon**: Use `/xa forcebloodmoon` to trigger event
 2. **Spawn Large Horde**: Natural spawning + manual spawns
 3. **Create Performance Stress**: Add entities, redstone, etc.
 4. **Observe System Behavior**:
