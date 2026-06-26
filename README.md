@@ -1,7 +1,7 @@
-<h1 align="center">☠️ Zombpocalypse Plugin ☣️</h1>
+<h1 align="center">☠️ xApocalypse Plugin ☣️</h1>
 
 <p align="center">
-  <img src="https://i.imgur.com/M0z9eVF.png" width="600" alt="Zombpocalypse Banner"/>
+  <img src="https://i.imgur.com/M0z9eVF.png" width="600" alt="xApocalypse Banner"/>
 </p>
 
 <p align="center">
@@ -109,7 +109,7 @@ bloodmoon:
 ## 📸 Screenshots & Showcase
 
 <details>
-  <summary>Click to view screenshots of Zombpocalypse in action!</summary>
+  <summary>Click to view screenshots of xApocalypse in action!</summary>
   <br/>
 
 ### Daytime

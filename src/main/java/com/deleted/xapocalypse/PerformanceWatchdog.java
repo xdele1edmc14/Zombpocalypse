@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public class PerformanceWatchdog {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
     private BukkitTask watchdogTask;
     private BukkitTask lodTask;
     
@@ -39,7 +39,7 @@ public class PerformanceWatchdog {
     private final double lodDistanceThreshold = 32.0; // Blocks
     private final long lodTickInterval = 20L; // Ticks between AI updates for far zombies (1 second)
 
-    public PerformanceWatchdog(Zombpocalypse plugin) {
+    public PerformanceWatchdog(xApocalypse plugin) {
         this.plugin = plugin;
         loadConfig();
     }
@@ -236,7 +236,7 @@ public class PerformanceWatchdog {
                     if (!(entity instanceof Zombie zombie) || zombie.isDead() || !zombie.isValid()) continue;
                     // Bug 19 fix: skip zombies mid-rise-animation (setAI(false) would conflict)
                     if (zombie.getPersistentDataContainer().has(
-                            ZombpocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                            xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
                     if (zombie.hasAI()) zombie.setAI(false);
                     zombieLastAITick.put(zombie, currentTick);
                 }
@@ -248,7 +248,7 @@ public class PerformanceWatchdog {
                 if (zombie.isDead() || !zombie.isValid()) continue;
                 // Bug 19 fix: skip animating zombies
                 if (zombie.getPersistentDataContainer().has(
-                        ZombpocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                        xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
 
                 double minDistance = Double.MAX_VALUE;
                 for (Player player : players) {

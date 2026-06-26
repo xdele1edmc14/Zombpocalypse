@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -31,14 +31,14 @@ public final class UndeadSpawner {
 
     private static final int MAX_CONCURRENT_ANIMATIONS = 50;
 
-    private final Zombpocalypse plugin;
-    private final ZombpocalypseUtils utils;
+    private final xApocalypse plugin;
+    private final xApocalypseUtils utils;
 
     private final Map<UUID, Long> lastSpawnByPlayerMs = new HashMap<>();
     private final Map<Long, Long> activeOrRecentByBlockMs = new HashMap<>();
     private final Set<UUID> activeAnimationEntities = new HashSet<>();
 
-    public UndeadSpawner(Zombpocalypse plugin, ZombpocalypseUtils utils) {
+    public UndeadSpawner(xApocalypse plugin, xApocalypseUtils utils) {
         this.plugin = plugin;
         this.utils = utils;
     }
@@ -51,7 +51,7 @@ public final class UndeadSpawner {
     public Zombie trySpawnUndeadRise(Player player, Location target) {
         if (player == null || target == null) return null;
 
-        if (player.hasPermission("zombpocalypse.admin")) return null;
+        if (player.hasPermission("xapocalypse.admin")) return null;
         if (player.getGameMode() != GameMode.SURVIVAL) return null;
         if (player.isFlying() || player.isGliding()) return null;
 
@@ -136,7 +136,7 @@ public final class UndeadSpawner {
         zombie.setGravity(false);
         zombie.setInvulnerable(true);
         // Bug 19 fix: mark as animating so the LOD system's setAI(false) doesn't fight the animation
-        zombie.getPersistentDataContainer().set(ZombpocalypseUtils.ANIMATING_KEY,
+        zombie.getPersistentDataContainer().set(xApocalypseUtils.ANIMATING_KEY,
                 org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
 
         Location working = surface.clone().add(0.0, -START_BELOW_SURFACE_Y, 0.0);
@@ -200,7 +200,7 @@ public final class UndeadSpawner {
     private void finalizeZombie(Zombie zombie) {
         if (!zombie.isValid() || zombie.isDead()) return;
         // Bug 19 fix: remove the animating tag before re-enabling AI so the LOD system takes over normally
-        zombie.getPersistentDataContainer().remove(ZombpocalypseUtils.ANIMATING_KEY);
+        zombie.getPersistentDataContainer().remove(xApocalypseUtils.ANIMATING_KEY);
         zombie.setInvulnerable(false);
         zombie.setGravity(true);
         zombie.setAI(true);

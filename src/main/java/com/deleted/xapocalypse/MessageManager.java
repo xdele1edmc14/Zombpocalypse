@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;

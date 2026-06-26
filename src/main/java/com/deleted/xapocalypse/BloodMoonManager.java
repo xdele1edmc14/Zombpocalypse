@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -18,14 +18,14 @@ import java.io.IOException;
  * Owns the entire Blood Moon subsystem: configuration multipliers, the BloodMoonData.yml
  * persistence file, the bossbar, the repeating lifecycle task, and the force/stop commands.
  *
- * Extracted verbatim from the original Zombpocalypse monolith — every bug-fix (Bug C5/C6,
+ * Extracted verbatim from the original xApocalypse monolith — every bug-fix (Bug C5/C6,
  * Fix RC1-RC4, Bug M5) is preserved. The MythicMobs integration is resolved lazily through
  * the plugin facade ({@code plugin.getMythicMobsManager()}) so this manager holds no direct
  * reference to MythicMobsManager (keeps the dependency graph acyclic at the type level).
  */
 public class BloodMoonManager {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
 
     // --- CONFIG VALUES ---
     private boolean bloodMoonEnabled;
@@ -53,7 +53,7 @@ public class BloodMoonManager {
     private File bloodMoonDataFile;
     private FileConfiguration bloodMoonDataConfig;
 
-    public BloodMoonManager(Zombpocalypse plugin) {
+    public BloodMoonManager(xApocalypse plugin) {
         this.plugin = plugin;
     }
 

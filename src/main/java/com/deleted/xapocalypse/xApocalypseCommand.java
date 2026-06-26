@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -17,21 +17,21 @@ import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The single {@link CommandExecutor} for Zombpocalypse, routing the six registered commands
+ * The single {@link CommandExecutor} for xApocalypse, routing the six registered commands
  * (zreload, zitem, forcebloodmoon, stopbloodmoon, zspawn, help) to the relevant managers.
  * Extracted verbatim from the monolith's onCommand; all permissions, argument parsing and
  * bug-fixes (Bug M4 surface-snap, gate-bypass) are preserved.
  */
-public class ZombpocalypseCommand implements CommandExecutor {
+public class xApocalypseCommand implements CommandExecutor {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
     private final MessageManager messageManager;
     private final BloodMoonManager bloodMoon;
     private final MythicMobsManager mythicMobsManager;
     private final UndeadSpawner undeadSpawner;
-    private final ZombpocalypseUtils utils;
+    private final xApocalypseUtils utils;
 
-    public ZombpocalypseCommand(Zombpocalypse plugin) {
+    public xApocalypseCommand(xApocalypse plugin) {
         this.plugin = plugin;
         this.messageManager = plugin.getMessages();
         this.bloodMoon = plugin.getBloodMoon();
@@ -43,7 +43,7 @@ public class ZombpocalypseCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("zreload")) {
-            if (!sender.hasPermission("zombpocalypse.admin")) {
+            if (!sender.hasPermission("xapocalypse.admin")) {
                 sender.sendMessage(messageManager.get("no-permission"));
                 return true;
             }
@@ -58,7 +58,7 @@ public class ZombpocalypseCommand implements CommandExecutor {
         }
 
         if (command.getName().equalsIgnoreCase("zitem")) {
-            if (!sender.hasPermission("zombpocalypse.admin")) {
+            if (!sender.hasPermission("xapocalypse.admin")) {
                 sender.sendMessage(messageManager.get("no-permission"));
                 return true;
             }
@@ -101,7 +101,7 @@ public class ZombpocalypseCommand implements CommandExecutor {
         }
 
         if (command.getName().equalsIgnoreCase("forcebloodmoon")) {
-            if (!sender.hasPermission("zombpocalypse.admin")) {
+            if (!sender.hasPermission("xapocalypse.admin")) {
                 sender.sendMessage(messageManager.get("no-permission"));
                 return true;
             }
@@ -144,7 +144,7 @@ public class ZombpocalypseCommand implements CommandExecutor {
         }
 
         if (command.getName().equalsIgnoreCase("stopbloodmoon")) {
-            if (!sender.hasPermission("zombpocalypse.admin")) {
+            if (!sender.hasPermission("xapocalypse.admin")) {
                 sender.sendMessage(messageManager.get("no-permission"));
                 return true;
             }
@@ -155,7 +155,7 @@ public class ZombpocalypseCommand implements CommandExecutor {
         }
 
         if (command.getName().equalsIgnoreCase("zspawn")) {
-            if (!sender.hasPermission("zombpocalypse.command.zspawn")) {
+            if (!sender.hasPermission("xapocalypse.command.zspawn")) {
                 sender.sendMessage("§cNo permission."); return true;
             }
 
@@ -246,11 +246,11 @@ public class ZombpocalypseCommand implements CommandExecutor {
             }
 
             // Specific type
-            ZombpocalypseUtils.ZombieType type;
+            xApocalypseUtils.ZombieType type;
             try {
-                type = ZombpocalypseUtils.ZombieType.valueOf(typeArg);
+                type = xApocalypseUtils.ZombieType.valueOf(typeArg);
             } catch (IllegalArgumentException e) {
-                sender.sendMessage("§cInvalid zombie type. Valid types: " + Arrays.toString(ZombpocalypseUtils.ZombieType.values()));
+                sender.sendMessage("§cInvalid zombie type. Valid types: " + Arrays.toString(xApocalypseUtils.ZombieType.values()));
                 return true;
             }
 

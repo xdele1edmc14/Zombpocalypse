@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.Bukkit;
@@ -13,22 +13,22 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Zombpocalypse — the {@link JavaPlugin} entry point. After the decomposition refactor this
+ * xApocalypse — the {@link JavaPlugin} entry point. After the decomposition refactor this
  * class is a slim <b>composition root</b> (wires up all managers in {@code onEnable}) and a
  * <b>facade</b>: it owns general config + world helpers + the GriefPrevention hook, and exposes
- * thin delegate methods so the pre-existing support classes (ZombpocalypseUtils, UndeadSpawner,
+ * thin delegate methods so the pre-existing support classes (xApocalypseUtils, UndeadSpawner,
  * HordeSpawnerTask, MythicMobsManager, PerformanceWatchdog) keep talking to {@code plugin.*}
  * without knowing about the new managers. This keeps the dependency graph a star (everyone
  * depends on the facade; the facade depends on everyone) rather than a circular mesh.
  *
  * Subsystems live in dedicated managers:
  *   {@link BloodMoonManager}, {@link ImmunityManager}, {@link ScentManager}, {@link HordeManager}.
- * Events live in {@link ZombpocalypseListener}; commands in {@link ZombpocalypseCommand}.
+ * Events live in {@link xApocalypseListener}; commands in {@link xApocalypseCommand}.
  */
-public class Zombpocalypse extends JavaPlugin {
+public class xApocalypse extends JavaPlugin {
 
     // --- MANAGERS ---
-    private ZombpocalypseUtils utils;
+    private xApocalypseUtils utils;
     private UndeadSpawner undeadSpawner;
     private MessageManager messageManager;
     private PerformanceWatchdog performanceWatchdog;
@@ -84,7 +84,7 @@ public class Zombpocalypse extends JavaPlugin {
         setupHooks();
 
         // --- Utils / Spawner Setup ---
-        utils = new ZombpocalypseUtils(this, griefPrevention, griefPreventionEnabled);
+        utils = new xApocalypseUtils(this, griefPrevention, griefPreventionEnabled);
         undeadSpawner = new UndeadSpawner(this, utils);
         horde = new HordeManager(this, utils, undeadSpawner);
         scent = new ScentManager(this);
@@ -110,10 +110,10 @@ public class Zombpocalypse extends JavaPlugin {
         // immediately kill the watchdog's TPS-monitor and LOD tasks.
         performanceWatchdog = new PerformanceWatchdog(this);
 
-        getServer().getPluginManager().registerEvents(new ZombpocalypseListener(this), this);
+        getServer().getPluginManager().registerEvents(new xApocalypseListener(this), this);
 
         // Register commands
-        ZombpocalypseCommand commandExecutor = new ZombpocalypseCommand(this);
+        xApocalypseCommand commandExecutor = new xApocalypseCommand(this);
         getCommand("zreload").setExecutor(commandExecutor);
         getCommand("help").setExecutor(commandExecutor);
         getCommand("zitem").setExecutor(commandExecutor);
@@ -122,7 +122,7 @@ public class Zombpocalypse extends JavaPlugin {
         getCommand("zspawn").setExecutor(commandExecutor);
 
         // Register tab completers
-        ZombpocalypseTabCompleter tabCompleter = new ZombpocalypseTabCompleter();
+        xApocalypseTabCompleter tabCompleter = new xApocalypseTabCompleter();
         getCommand("zspawn").setTabCompleter(tabCompleter);
         getCommand("zitem").setTabCompleter(tabCompleter);
 
@@ -134,7 +134,7 @@ public class Zombpocalypse extends JavaPlugin {
         // the cancelTasks(this) call inside startSpawnerTask().
         performanceWatchdog.start();
 
-        getLogger().info("[Zombpocalypse v1.3] Zombpocalypse has started! Brains...");
+        getLogger().info("[xApocalypse v1.0.0] xApocalypse has started! Brains...");
     }
 
     @Override
@@ -323,7 +323,7 @@ public class Zombpocalypse extends JavaPlugin {
         return horde;
     }
 
-    public ZombpocalypseUtils getUtils() {
+    public xApocalypseUtils getUtils() {
         return utils;
     }
 

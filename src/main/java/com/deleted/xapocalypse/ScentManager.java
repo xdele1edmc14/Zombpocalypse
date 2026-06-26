@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -15,12 +15,12 @@ import java.util.UUID;
  * tasks, and scent accrual from sprinting, jumping and kills. Scent raises the size of the
  * hordes spawned near a player (consumed by {@link HordeManager#spawnZombiesNearPlayer}).
  *
- * Extracted verbatim from the original Zombpocalypse monolith (Bug C4 jump-edge detection
+ * Extracted verbatim from the original xApocalypse monolith (Bug C4 jump-edge detection
  * preserved).
  */
 public class ScentManager {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
 
     private final Map<UUID, Double> playerScent = new HashMap<>();
     private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
@@ -30,7 +30,7 @@ public class ScentManager {
     private BukkitTask scentDecayTask;
     private BukkitTask scentSprintTask;
 
-    public ScentManager(Zombpocalypse plugin) {
+    public ScentManager(xApocalypse plugin) {
         this.plugin = plugin;
     }
 
@@ -87,7 +87,7 @@ public class ScentManager {
         plugin.debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + newScent + " / " + maxScent + ")");
     }
 
-    // === EVENT HOOKS (called by ZombpocalypseListener) ===
+    // === EVENT HOOKS (called by xApocalypseListener) ===
 
     public void onToggleSprint(Player player, boolean sprinting) {
         if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;

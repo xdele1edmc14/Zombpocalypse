@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.*;
@@ -15,25 +15,25 @@ import org.bukkit.util.Vector;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class ZombpocalypseUtils {
+public class xApocalypseUtils {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
     private final GriefPrevention griefPrevention;
     private final boolean griefPreventionEnabled;
 
-    public static final NamespacedKey ZOMBIE_TYPE_KEY = new NamespacedKey("zombpocalypse", "zombie_type");
-    public static final NamespacedKey LAST_HEAL_KEY = new NamespacedKey("zombpocalypse", "last_heal");
-    public static final NamespacedKey LAST_BREAK_KEY = new NamespacedKey("zombpocalypse", "last_break");
-    public static final NamespacedKey LAST_SPIT_KEY = new NamespacedKey("zombpocalypse", "last_spit");
-    public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("zombpocalypse", "last_rage");
-    public static final NamespacedKey LAST_WEB_KEY = new NamespacedKey("zombpocalypse", "last_web");
-    public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("zombpocalypse", "burster_primed");
+    public static final NamespacedKey ZOMBIE_TYPE_KEY = new NamespacedKey("xapocalypse", "zombie_type");
+    public static final NamespacedKey LAST_HEAL_KEY = new NamespacedKey("xapocalypse", "last_heal");
+    public static final NamespacedKey LAST_BREAK_KEY = new NamespacedKey("xapocalypse", "last_break");
+    public static final NamespacedKey LAST_SPIT_KEY = new NamespacedKey("xapocalypse", "last_spit");
+    public static final NamespacedKey LAST_RAGE_KEY = new NamespacedKey("xapocalypse", "last_rage");
+    public static final NamespacedKey LAST_WEB_KEY = new NamespacedKey("xapocalypse", "last_web");
+    public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("xapocalypse", "burster_primed");
     // Bug 2 fix: dedicated PDC key for acid spit projectiles (ZOMBIE_TYPE_KEY belongs to zombie entities, not projectiles)
-    public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("zombpocalypse", "acid_spit");
+    public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("xapocalypse", "acid_spit");
     // Bug 5 fix: static constant avoids allocating a new NamespacedKey every tick in tickBuilderAI
-    public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("zombpocalypse", "last_build");
+    public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("xapocalypse", "last_build");
     // Bug 19 fix: marks a zombie as mid-rise-animation so the LOD system won't call setAI(false) on it
-    public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("zombpocalypse", "animating");
+    public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("xapocalypse", "animating");
 
     public enum ZombieType {
         SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
@@ -44,7 +44,7 @@ public class ZombpocalypseUtils {
 
     private final Map<UUID, BukkitRunnable> activeBursterFuses = new HashMap<>();
 
-    public ZombpocalypseUtils(Zombpocalypse plugin, GriefPrevention gp, boolean gpEnabled) {
+    public xApocalypseUtils(xApocalypse plugin, GriefPrevention gp, boolean gpEnabled) {
         this.plugin = plugin;
         this.griefPrevention = gp;
         this.griefPreventionEnabled = gpEnabled;

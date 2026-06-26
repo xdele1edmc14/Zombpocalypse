@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -11,7 +11,7 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.UUID;
 
 /**
- * The single Bukkit {@link Listener} for Zombpocalypse. Every {@code @EventHandler} that used
+ * The single Bukkit {@link Listener} for xApocalypse. Every {@code @EventHandler} that used
  * to live on the monolith now lives here and delegates to the relevant manager. Keeping all
  * handlers in ONE class (rather than scattering them across managers) keeps the dependency
  * graph a star and avoids managers having to implement Listener.
@@ -19,16 +19,16 @@ import java.util.UUID;
  * Manager references are resolved once in the constructor (all managers exist by the time the
  * listener is registered in onEnable).
  */
-public class ZombpocalypseListener implements Listener {
+public class xApocalypseListener implements Listener {
 
-    private final Zombpocalypse plugin;
-    private final ZombpocalypseUtils utils;
+    private final xApocalypse plugin;
+    private final xApocalypseUtils utils;
     private final BloodMoonManager bloodMoon;
     private final ImmunityManager immunity;
     private final ScentManager scent;
     private final HordeManager horde;
 
-    public ZombpocalypseListener(Zombpocalypse plugin) {
+    public xApocalypseListener(xApocalypse plugin) {
         this.plugin = plugin;
         this.utils = plugin.getUtils();
         this.bloodMoon = plugin.getBloodMoon();
@@ -52,8 +52,8 @@ public class ZombpocalypseListener implements Listener {
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
         if (event.getEntity() instanceof Zombie zombie) {
-            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
-            if (type == ZombpocalypseUtils.ZombieType.BURSTER) {
+            xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            if (type == xApocalypseUtils.ZombieType.BURSTER) {
                 utils.cancelBursterFuse(zombie);
             }
 
@@ -179,8 +179,8 @@ public class ZombpocalypseListener implements Listener {
 
             // Handle BURSTER target event
             if (event.getEntity() instanceof Zombie zombie) {
-                ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
-                if (type == ZombpocalypseUtils.ZombieType.BURSTER) {
+                xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+                if (type == xApocalypseUtils.ZombieType.BURSTER) {
                     utils.handleBursterTarget(zombie, player);
                 }
             }
@@ -196,8 +196,8 @@ public class ZombpocalypseListener implements Listener {
             event.getCause() == DamageCause.FIRE_TICK ||
             event.getCause() == DamageCause.LAVA) {
 
-            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
-            if (type != null && type != ZombpocalypseUtils.ZombieType.NORMAL) {
+            xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            if (type != null && type != xApocalypseUtils.ZombieType.NORMAL) {
                 // Cancel fire damage for all custom zombie types
                 event.setCancelled(true);
                 zombie.setFireTicks(0); // Extinguish any existing fire
@@ -209,7 +209,7 @@ public class ZombpocalypseListener implements Listener {
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Zombie zombie && event.getEntity() instanceof Player player) {
-            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
             if (type == null) return;
 
             switch (type) {
@@ -238,7 +238,7 @@ public class ZombpocalypseListener implements Listener {
         // type check and the PDC read were wrong, so the poison effect never applied.
         if (!(event.getEntity() instanceof LlamaSpit spit)) return;
 
-        Byte acidTag = spit.getPersistentDataContainer().get(ZombpocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
+        Byte acidTag = spit.getPersistentDataContainer().get(xApocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
         if (acidTag != null) {
             if (event.getHitEntity() != null) {
                 utils.handleAcidHit(event.getHitEntity());
@@ -251,13 +251,13 @@ public class ZombpocalypseListener implements Listener {
         if (!plugin.isWorldEnabled(event.getEntity().getWorld())) return;
         if (event.getEntity() instanceof Zombie zombie) {
             // Check zombie type and potion effects to decide combustion handling
-            ZombpocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
 
             boolean hasFireResistance = zombie.getActivePotionEffects().stream()
                     .anyMatch(pe -> pe.getType() == org.bukkit.potion.PotionEffectType.FIRE_RESISTANCE);
 
             // If the zombie has explicit fire resistance or is a scorched type, cancel combustion
-            if (type == ZombpocalypseUtils.ZombieType.SCORCHED || hasFireResistance) {
+            if (type == xApocalypseUtils.ZombieType.SCORCHED || hasFireResistance) {
                 event.setCancelled(true);
                 zombie.setFireTicks(0);
                 return;

@@ -1,11 +1,11 @@
-# Zombpocalypse v1.3.3 - Localization File
+# xApocalypse v1.0.0 - Localization File
 # SUPPORTS BOTH FORMATS:
 # - MiniMessage: <gradient:red:blue>Text</gradient>, <rainbow>Text</rainbow>, <#FF5555>Hex</color>
 # - Legacy: &a, &b, &l, &n, §c, etc.
 # Use {0}, {1} for placeholders
 
 # General Messages
-prefix: "&4[Zombpocalypse]&r"
+prefix: "&4[xApocalypse]&r"
 reload-success: "<gradient:green:aqua>Configuration and language files reloaded!</gradient>"
 reload-error: "&cError reloading: {0}"
 no-permission: "&cYou don't have permission to use this command."
@@ -16,7 +16,7 @@ player-not-found: "&cPlayer not found: {0}"
 commands:
   no-permission: "&cYou don't have permission to use this command."
   help:
-    header: "&4&l--- Zombpocalypse v1.3.3 ---"
+    header: "&4&l--- xApocalypse v1.0.0 ---"
     author: "&aBy xDele1ed"
     reload: "&b/za reload&7: Reload config and language"
     spawn: "&b/zspawn <type|horde> [count] [radius]&7: Spawn zombies"
@@ -94,7 +94,7 @@ performance:
   tps-recovered: "&a[Performance] TPS recovered, normal spawning resumed."
   entity-limit-reached: "&c[Performance] Entity limit reached, spawning paused."
 
-# Mutations (New in v1.3.3)
+# Mutations (New in v1.0.0)
 mutations:
   assassin:
     spawn-message: "&5An Assassin stalks you from the shadows..."

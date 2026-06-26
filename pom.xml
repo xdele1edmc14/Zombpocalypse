@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.deleted</groupId>
-    <artifactId>zombpocalypse</artifactId>
-    <version>1.4.6-BETA</version>
+    <artifactId>xapocalypse</artifactId>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Zombpocalypse</name>
+    <name>xApocalypse</name>
     <description>A hardcore zombie horde plugin with advanced AI, Blood Moons, and GriefPrevention support</description>
 
     <properties>
@@ -102,7 +102,7 @@
                             <relocations>
                                 <relocation>
                                     <pattern>net.kyori.adventure.text.minimessage</pattern>
-                                    <shadedPattern>com.deleted.zombpocalypse.libs.minimessage</shadedPattern>
+                                    <shadedPattern>com.deleted.xapocalypse.libs.minimessage</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>

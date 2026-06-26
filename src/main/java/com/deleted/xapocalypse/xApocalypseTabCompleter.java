@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ZombpocalypseTabCompleter implements TabCompleter {
+public class xApocalypseTabCompleter implements TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
@@ -21,7 +21,7 @@ public class ZombpocalypseTabCompleter implements TabCompleter {
                 List<String> types = new ArrayList<>();
                 types.add("horde");
                 types.add("MUTANT"); // MythicMobs boss type
-                for (ZombpocalypseUtils.ZombieType type : ZombpocalypseUtils.ZombieType.values()) {
+                for (xApocalypseUtils.ZombieType type : xApocalypseUtils.ZombieType.values()) {
                     types.add(type.name());
                 }
 

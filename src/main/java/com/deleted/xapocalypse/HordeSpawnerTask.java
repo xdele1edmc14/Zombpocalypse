@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -10,9 +10,9 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class HordeSpawnerTask extends BukkitRunnable {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
 
-    public HordeSpawnerTask(Zombpocalypse plugin) {
+    public HordeSpawnerTask(xApocalypse plugin) {
         this.plugin = plugin;
     }
 

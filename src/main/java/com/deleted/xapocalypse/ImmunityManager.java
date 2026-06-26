@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -29,14 +29,14 @@ import java.util.UUID;
  * persistence file, the bossbar + expiry-check tasks, granting immunity on guts consumption,
  * and restoring player state on join/quit.
  *
- * Extracted verbatim from the original Zombpocalypse monolith. All BUGFIX behaviour is
+ * Extracted verbatim from the original xApocalypse monolith. All BUGFIX behaviour is
  * preserved — most importantly that all immunity timing uses System.currentTimeMillis()
  * (the real-world clock) rather than world.getFullTime(), which is warped by the blood-moon
  * system's world.setTime() calls.
  */
 public class ImmunityManager {
 
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
     private final MessageManager messageManager;
 
     // --- PERSISTENCE (data.yml is owned entirely by the immunity subsystem) ---
@@ -55,7 +55,7 @@ public class ImmunityManager {
     // by up to +-24000 ticks instantly, which was corrupting every active immunity countdown.
     private final long IMMUNITY_DURATION_MILLIS = IMMUNITY_DURATION_TICKS * 50L;
 
-    public ImmunityManager(Zombpocalypse plugin, MessageManager messageManager) {
+    public ImmunityManager(xApocalypse plugin, MessageManager messageManager) {
         this.plugin = plugin;
         this.messageManager = messageManager;
     }
@@ -308,7 +308,7 @@ public class ImmunityManager {
         if (bar != null) bar.removeAll();
     }
 
-    // === EVENT HOOKS (called by ZombpocalypseListener) ===
+    // === EVENT HOOKS (called by xApocalypseListener) ===
 
     public boolean isImmune(UUID uuid) {
         return immunePlayers.contains(uuid);

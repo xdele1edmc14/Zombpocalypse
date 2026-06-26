@@ -1,8 +1,8 @@
-# Zombpocalypse Bug Fixes
+# xApocalypse Bug Fixes
 
 ---
 
-## Bug 1 — `Zombpocalypse.java` | `aiTask` never cancelled; stacks on reload
+## Bug 1 — `xApocalypse.java` | `aiTask` never cancelled; stacks on reload
 
 **Root cause:** `startAITickTask()` assigns to `aiTask` but `aiTask` is never cancelled before a new one is started. Every `/zreload` stacks another AI tick loop.
 
@@ -43,7 +43,7 @@ public void onDisable() {
 
 ---
 
-## Bug 2 — `Zombpocalypse.java` | Acid spit never applies poison
+## Bug 2 — `xApocalypse.java` | Acid spit never applies poison
 
 **Root cause 1:** `onProjectileHit` only handles `Snowball`, but `tickSpitterAI` fires a `LlamaSpit`.  
 **Root cause 2:** Even if the type matched, the PDC key used is `ZOMBIE_TYPE_KEY` — a key that belongs to the zombie entity, not the projectile. The spit entity has no such key set.
@@ -51,8 +51,8 @@ public void onDisable() {
 **Fix — handle `LlamaSpit` and use a dedicated PDC key:**
 
 ```java
-// In ZombpocalypseUtils.java, add a new key:
-public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("zombpocalypse", "acid_spit");
+// In xApocalypseUtils.java, add a new key:
+public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("xapocalypse", "acid_spit");
 
 // In tickSpitterAI(), tag the spit after launching:
 private void tickSpitterAI(Zombie spitter) {
@@ -76,13 +76,13 @@ private void tickSpitterAI(Zombie spitter) {
     spitter.getWorld().playSound(spitter.getLocation(), Sound.ENTITY_LLAMA_SPIT, 1.0f, 0.8f);
 }
 
-// In Zombpocalypse.java, fix onProjectileHit:
+// In xApocalypse.java, fix onProjectileHit:
 @EventHandler
 public void onProjectileHit(ProjectileHitEvent event) {
     // Handle LlamaSpit acid attacks from Spitter zombies
     if (event.getEntity() instanceof LlamaSpit spit) {
         boolean isAcid = spit.getPersistentDataContainer()
-                .has(ZombpocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
+                .has(xApocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
         if (isAcid && event.getHitEntity() != null) {
             utils.handleAcidHit(event.getHitEntity());
         }
@@ -92,7 +92,7 @@ public void onProjectileHit(ProjectileHitEvent event) {
     // Keep legacy Snowball handler if used elsewhere
     if (event.getEntity() instanceof Snowball snowball) {
         String acidTag = snowball.getPersistentDataContainer()
-                .get(ZombpocalypseUtils.ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
+                .get(xApocalypseUtils.ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
         if (acidTag != null && acidTag.equals("ACID") && event.getHitEntity() != null) {
             utils.handleAcidHit(event.getHitEntity());
         }
@@ -102,7 +102,7 @@ public void onProjectileHit(ProjectileHitEvent event) {
 
 ---
 
-## Bug 3 — `Zombpocalypse.java` | Side-effect in `isBloodMoonActive()` sets start time
+## Bug 3 — `xApocalypse.java` | Side-effect in `isBloodMoonActive()` sets start time
 
 **Root cause:** `isBloodMoonActive()` is a read method called many times per second, but it mutates `forcedBloodMoonStartTime` as a fallback. This means the timer can reset on any call where the field happens to be -1.
 
@@ -156,21 +156,21 @@ saveBloodMoonData();
 
 ---
 
-## Bug 4 — `Zombpocalypse.java` | Mob whitelist cancels plugin-spawned zombies
+## Bug 4 — `xApocalypse.java` | Mob whitelist cancels plugin-spawned zombies
 
 **Root cause:** `onEntitySpawn` runs for all spawns including ones your plugin triggers. When using whitelist mode (`useMobBlacklist = false`), any entity not in the list is cancelled — including your own zombies if `ZOMBIE` isn't explicitly listed, or more subtly, if the event fires before `assignZombieType` has run.
 
 **Fix — skip the list check entirely for plugin-owned spawns using a PDC tag:**
 
 ```java
-// In ZombpocalypseUtils.java, add a key:
-public static final NamespacedKey PLUGIN_SPAWNED_KEY = new NamespacedKey("zombpocalypse", "plugin_spawned");
+// In xApocalypseUtils.java, add a key:
+public static final NamespacedKey PLUGIN_SPAWNED_KEY = new NamespacedKey("xapocalypse", "plugin_spawned");
 
 // In spawnZombiesNearPlayer() and anywhere you spawn directly, tag before the event fires
 // by using a pre-spawn hook. Since Bukkit doesn't support pre-spawn tagging directly,
 // use a flag approach — add to a Set<UUID> of pending spawns:
 
-// In Zombpocalypse.java:
+// In xApocalypse.java:
 private final Set<UUID> pluginSpawnedPending = new HashSet<>();
 
 // Wrap all direct spawns:
@@ -226,13 +226,13 @@ public void onEntitySpawn(CreatureSpawnEvent event) {
 
 ---
 
-## Bug 5 — `ZombpocalypseUtils.java` | `new NamespacedKey` allocated every tick in `tickBuilderAI`
+## Bug 5 — `xApocalypseUtils.java` | `new NamespacedKey` allocated every tick in `tickBuilderAI`
 
 **Fix — promote to a static final constant alongside the other keys:**
 
 ```java
-// In ZombpocalypseUtils.java, add with the other keys at the top:
-public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("zombpocalypse", "last_build");
+// In xApocalypseUtils.java, add with the other keys at the top:
+public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("xapocalypse", "last_build");
 
 // In tickBuilderAI(), replace the local variable:
 private void tickBuilderAI(Zombie builder) {
@@ -254,7 +254,7 @@ private void tickBuilderAI(Zombie builder) {
 
 ---
 
-## Bug 6 — `Zombpocalypse.java` | Immunity BossBar leaks on rapid reconnect
+## Bug 6 — `xApocalypse.java` | Immunity BossBar leaks on rapid reconnect
 
 **Root cause:** `onPlayerJoin` creates a new `BossBar` and puts it in `immunityBossBars` without checking if one already exists from a previous session load.
 
@@ -330,7 +330,7 @@ if (zombieLastAITick.size() > 500) {
 
 ---
 
-## Bug 8 — `Zombpocalypse.java` | `builderBlocks` / `builderBlockOwners` unbounded
+## Bug 8 — `xApocalypse.java` | `builderBlocks` / `builderBlockOwners` unbounded
 
 **Fix — cap the maps at insertion time and add an emergency purge:**
 
@@ -366,7 +366,7 @@ public void trackBuilderBlock(Location loc, UUID zombieUUID) {
 
 ---
 
-## Bugs 9, 10 — `Zombpocalypse.java` | Triple immunity expiry — messages sent up to 3×
+## Bugs 9, 10 — `xApocalypse.java` | Triple immunity expiry — messages sent up to 3×
 
 **Root cause:** Three independent systems all handle expiry: `startImmunityCheckTask`, `startImmunityBossBarTask`, and `scheduleImmunityRemoval`. They all call `cleanUpPlayerState` and send messages.
 
@@ -423,7 +423,7 @@ private void scheduleImmunityRemoval(Player player, long durationTicks) {
 
 ---
 
-## Bug 11 — `Zombpocalypse.java` | `onPlayerConsume` removes wrong item amount
+## Bug 11 — `xApocalypse.java` | `onPlayerConsume` removes wrong item amount
 
 **Root cause:** When `event.setCancelled(true)`, vanilla doesn't consume the item. Manual removal using `ItemStack.equals()` matches by type/meta/amount — if the player has a stack of 2 zombie guts in offhand, it removes the whole stack instead of decrementing.
 
@@ -551,7 +551,7 @@ public void run() {
 
 ---
 
-## Bug 13 — `Zombpocalypse.java` | Blood moon task not tracked; can't safely restart
+## Bug 13 — `xApocalypse.java` | Blood moon task not tracked; can't safely restart
 
 **Fix — store the blood moon task reference and cancel it explicitly on reload:**
 
@@ -581,7 +581,7 @@ if (bloodMoonTask != null && !bloodMoonTask.isCancelled()) {
 
 ---
 
-## Bug 14 — `ZombpocalypseUtils.java` | `getRandomZombieType()` biases last entry
+## Bug 14 — `xApocalypseUtils.java` | `getRandomZombieType()` biases last entry
 
 **Fix — use strict `<` and guarantee a non-null fallback:**
 
@@ -602,7 +602,7 @@ private ZombieType getRandomZombieType() {
 
 ---
 
-## Bug 15 — `ZombpocalypseUtils.java` | Most zombie types missing fire resistance potion for sunlight burn
+## Bug 15 — `xApocalypseUtils.java` | Most zombie types missing fire resistance potion for sunlight burn
 
 **Root cause:** `onEntityCombust` cancels sunlight burning only if the zombie has the `FIRE_RESISTANCE` potion effect. Most custom types don't get it in `applyZombieStats`.
 
@@ -661,7 +661,7 @@ case FROST -> {
 
 ---
 
-## Bug 16 — `Zombpocalypse.java` | Natural blood moon duration uses force-duration config
+## Bug 16 — `xApocalypse.java` | Natural blood moon duration uses force-duration config
 
 **Root cause:** `isBloodMoonActive()` at line 273 uses `bloodMoonForceDuration` (in minutes) to decide when a **natural** blood moon ends, instead of the actual Minecraft night length.
 
@@ -685,7 +685,7 @@ return isDayOf && isNight;
 
 ---
 
-## Bug 17 — `Zombpocalypse.java` | Natural blood moon fires at night-start of the PREVIOUS day number
+## Bug 17 — `xApocalypse.java` | Natural blood moon fires at night-start of the PREVIOUS day number
 
 This is a logic clarification rather than a code change. `fullTime / 24000` rolls over at the start of a new day (daytime). By the time it's night of that day, `dayNumber` is already the correct number. No code change needed — but add this comment to prevent future regressions:
 
@@ -699,7 +699,7 @@ boolean isDayOf = (dayNumber > 0) && (dayNumber % bloodMoonInterval == 0);
 
 ---
 
-## Bug 18 — `Zombpocalypse.java` | `stopbloodmoon` NPE if `bloodMoonBar` is null
+## Bug 18 — `xApocalypse.java` | `stopbloodmoon` NPE if `bloodMoonBar` is null
 
 **Fix — null-guard before accessing the bar:**
 
@@ -797,7 +797,7 @@ private void updateLODSystem() {
 
 ---
 
-## Bug 20 — `Zombpocalypse.java` / `UndeadSpawner.java` | `assignZombieType` called twice per spawn
+## Bug 20 — `xApocalypse.java` / `UndeadSpawner.java` | `assignZombieType` called twice per spawn
 
 **Root cause:** `UndeadSpawner.trySpawnUndeadRise` calls `utils.assignZombieType(zombie)`, then `CreatureSpawnEvent` fires and `onEntitySpawn` calls it again. The zombie gets two random type rolls.
 
@@ -818,7 +818,7 @@ public Zombie trySpawnUndeadRise(Location surface, Block surfaceBlock,
     // ...
 }
 
-// In Zombpocalypse.java, add setter:
+// In xApocalypse.java, add setter:
 void setPluginSpawning(boolean value) {
     this.isPluginSpawning = value;
 }

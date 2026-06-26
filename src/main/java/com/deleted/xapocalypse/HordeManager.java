@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -27,13 +27,13 @@ import java.util.concurrent.ThreadLocalRandom;
  * cleanup, the zombie AI tick loop (gated by the LOD system), and the {@code isPluginSpawning}
  * flag that lets plugin-spawned zombies bypass the CreatureSpawnEvent mob-list gate.
  *
- * Extracted verbatim from the original Zombpocalypse monolith (Bug M1 single-horde cap,
+ * Extracted verbatim from the original xApocalypse monolith (Bug M1 single-horde cap,
  * Bug C1/M2/20 plugin-spawning bracketing, Bug 19 animating-tag handling preserved).
  */
 public class HordeManager {
 
-    private final Zombpocalypse plugin;
-    private final ZombpocalypseUtils utils;
+    private final xApocalypse plugin;
+    private final xApocalypseUtils utils;
     private final UndeadSpawner undeadSpawner;
 
     // Bug 4 & 20 fix: flag so onEntitySpawn bypasses the mob-list check for plugin-spawned entities
@@ -43,7 +43,7 @@ public class HordeManager {
     private final Map<Location, Long> builderBlocks = new HashMap<>(); // Location -> Timestamp
     private final Map<Location, UUID> builderBlockOwners = new HashMap<>(); // Location -> Zombie UUID
 
-    public HordeManager(Zombpocalypse plugin, ZombpocalypseUtils utils, UndeadSpawner undeadSpawner) {
+    public HordeManager(xApocalypse plugin, xApocalypseUtils utils, UndeadSpawner undeadSpawner) {
         this.plugin = plugin;
         this.utils = utils;
         this.undeadSpawner = undeadSpawner;

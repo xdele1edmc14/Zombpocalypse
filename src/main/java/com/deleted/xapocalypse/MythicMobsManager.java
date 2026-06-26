@@ -1,4 +1,4 @@
-package com.deleted.zombpocalypse;
+package com.deleted.xapocalypse;
 
 import io.lumine.mythic.api.mobs.MythicMob;
 import io.lumine.mythic.bukkit.BukkitAPIHelper;
@@ -22,7 +22,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 public class MythicMobsManager {
-    private final Zombpocalypse plugin;
+    private final xApocalypse plugin;
     private final Logger log;
     private BukkitAPIHelper mmAPI;
     private boolean mythicMobsEnabled = false;
@@ -43,7 +43,7 @@ public class MythicMobsManager {
     // confirm the blood moon is genuinely over without being sensitive to transient blips.
     private int bloodMoonMissCount = 0;
 
-    public MythicMobsManager(Zombpocalypse plugin) {
+    public MythicMobsManager(xApocalypse plugin) {
         this.plugin = plugin;
         this.log = plugin.getLogger();
         this.init();
@@ -212,7 +212,7 @@ public class MythicMobsManager {
                 Entity entity = this.mmAPI.spawnMythicMob(this.mobType, loc);
                 if (entity != null) {
                     this.activeMutants.add(entity.getUniqueId());
-                    Zombpocalypse var10000 = this.plugin;
+                    xApocalypse var10000 = this.plugin;
                     String var5 = this.formatLoc(loc);
                     var10000.debugLog("[MythicMobs] Spawned at " + var5);
                 }

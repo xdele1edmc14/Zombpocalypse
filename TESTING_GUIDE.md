@@ -1,11 +1,11 @@
-# Zombpocalypse Horde Engine Testing Guide
+# xApocalypse Horde Engine Testing Guide
 
 ## Overview
-This guide covers testing all the major fixes and improvements made to the Zombpocalypse Horde engine. Follow these steps to verify each feature works correctly.
+This guide covers testing all the major fixes and improvements made to the xApocalypse Horde engine. Follow these steps to verify each feature works correctly.
 
 ## Prerequisites
 - PaperMC server running 1.21+
-- Zombpocalypse plugin installed with updated configuration
+- xApocalypse plugin installed with updated configuration
 - Test world with various terrain types
 - Debug mode enabled in config.yml for better logging
 
@@ -112,7 +112,7 @@ Verify the simplified zombie creation system works without Builder pattern.
 - Weighted random distribution matches config.yml percentages
 
 ### Troubleshooting
-- If types don't assign: Check `ZombpocalypseUtils.assignZombieType()`
+- If types don't assign: Check `xApocalypseUtils.assignZombieType()`
 - If wrong stats: Verify `applyZombieStats()` method
 - If distribution off: Check weight calculation in `getRandomZombieType()`
 
