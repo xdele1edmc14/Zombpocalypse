@@ -1,5 +1,6 @@
 package com.deleted.xapocalypse;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -12,6 +13,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.GameMode;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
@@ -204,6 +206,31 @@ public final class UndeadSpawner {
         zombie.setInvulnerable(false);
         zombie.setGravity(true);
         zombie.setAI(true);
+    }
+
+    /**
+     * Bug C2 fix: finalize every zombie left mid rise-animation. The animation timers are plugin
+     * tasks, so a {@code /xa reload} or server shutdown calls {@code cancelTasks(this)} and kills
+     * them WITHOUT running {@link #finalizeZombie}, which strands the zombie permanently
+     * invulnerable, AI-off, gravity-off and still tagged {@code ANIMATING_KEY} — and the LOD system
+     * then refuses to re-enable its AI, so it survives restarts as a frozen, unkillable mob.
+     *
+     * Sweeping every world for the animating tag (rather than only the in-memory tracker) also
+     * recovers orphans left by a previous crash. Then the concurrency trackers are cleared so a
+     * future reload can't leak toward {@code MAX_CONCURRENT_ANIMATIONS} and disable rises entirely.
+     * Safe to call repeatedly.
+     */
+    public void finalizeAllAnimations() {
+        for (World world : Bukkit.getWorlds()) {
+            for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                if (zombie.getPersistentDataContainer().has(xApocalypseUtils.ANIMATING_KEY, PersistentDataType.BYTE)) {
+                    finalizeZombie(zombie);
+                }
+            }
+        }
+        activeAnimationEntities.clear();
+        activeOrRecentByBlockMs.clear();
+        lastSpawnByPlayerMs.clear();
     }
 
     private boolean isValidSurface(Block surfaceBlock) {

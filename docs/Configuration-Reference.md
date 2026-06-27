@@ -192,7 +192,6 @@ apocalypse-settings:
   day-spawn-chance: 0.02       # chance to spawn during the day (0.02 = 2%)
   day-horde-size: 2            # smaller base size for day hordes
   day-horde-variance: 2
-  ignore-light-level: false    # true = allow spawns in daylight
   use-mob-blacklist: true      # true = blacklist mode; false = whitelist mode
   rising-animation: true       # zombies claw up out of the ground
   mob-list:                    # blocked (or, in whitelist mode, the only allowed) mobs
@@ -230,8 +229,7 @@ See **[Blood Moon](Blood-Moon.md)**.
 ```yaml
 performance:
   max-total-zombies: 300       # global zombie cap per world (culls furthest over this)
-  spawns-per-tick: 100         # spawn rate limiting
-  tps-threshold: 18.5          # TPS threshold knob
+  tps-threshold: 15.0          # pause new spawns below this TPS; resume once it recovers
   check-interval-ticks: 100    # watchdog interval (100 ticks = 5 s)
 ```
 
@@ -251,8 +249,7 @@ visuals:
 
 ```yaml
 cleanup:
-  miner-suppress-drops: false    # if true, blocks broken by miners don't drop items
-  # builder-auto-cleanup-seconds: 300  # seconds before tracked Builder blocks are removed
+  builder-auto-cleanup-seconds: 300  # seconds before blocks placed by Builder zombies are removed
 ```
 
 ---

@@ -30,12 +30,21 @@ public class ScentManager {
     private BukkitTask scentDecayTask;
     private BukkitTask scentSprintTask;
 
+    // Minor fix: cache hot-path config so onMove (fires on EVERY PlayerMoveEvent, including
+    // look-only moves) and addScent don't re-read config each call. Refreshed in startTasks()
+    // on enable and on every /xa reload.
+    private boolean scentEnabled = true;
+    private double maxScent = 100.0;
+
     public ScentManager(xApocalypse plugin) {
         this.plugin = plugin;
     }
 
     public void startTasks() {
-        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+        scentEnabled = plugin.getConfig().getBoolean("scent-system.enabled", true);
+        maxScent = plugin.getConfig().getDouble("scent-system.max-scent", 100.0);
+
+        if (!scentEnabled) return;
 
         // Cancel existing tasks on reload to prevent stacking
         if (scentDecayTask != null && !scentDecayTask.isCancelled()) scentDecayTask.cancel();
@@ -81,7 +90,6 @@ public class ScentManager {
 
     public void addScent(UUID uuid, double amount) {
         double current = playerScent.getOrDefault(uuid, 0.0);
-        double maxScent = plugin.getConfig().getDouble("scent-system.max-scent", 100.0);
         double newScent = Math.min(current + amount, maxScent);
         playerScent.put(uuid, newScent);
         plugin.debugLog("Player " + uuid + " scent increased by " + amount + " (now: " + newScent + " / " + maxScent + ")");
@@ -90,14 +98,14 @@ public class ScentManager {
     // === EVENT HOOKS (called by xApocalypseListener) ===
 
     public void onToggleSprint(Player player, boolean sprinting) {
-        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+        if (!scentEnabled) return;
         // Just track sprint state — scent is added continuously by scentSprintTask, not here.
         // Adding scent on toggle meant only one burst per sprint session regardless of duration.
         playerSprinting.put(player.getUniqueId(), sprinting);
     }
 
     public void onMove(Player player) {
-        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
+        if (!scentEnabled) return;
 
         UUID uuid = player.getUniqueId();
 

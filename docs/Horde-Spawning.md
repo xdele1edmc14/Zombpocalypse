@@ -33,7 +33,7 @@ If `debug-mode` is on, the console logs the exact reason each player is skipped 
 | **Base horde size** | `base-horde-size` (6) | `day-horde-size` (2) |
 | **Variance** | `horde-variance` (4) | `day-horde-variance` (2) |
 
-By default daytime spawning is rare (`day-spawn-chance: 0.02` = 2% per cycle) and produces much smaller hordes, so daytime is a relative reprieve. Set `ignore-light-level: true` to allow spawns in full daylight.
+By default daytime spawning is rare (`day-spawn-chance: 0.02` = 2% per cycle) and produces much smaller hordes, so daytime is a relative reprieve.
 
 ---
 

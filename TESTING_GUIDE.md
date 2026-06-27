@@ -126,12 +126,11 @@ Verify new performance settings work correctly.
    ```
    performance:
      max-total-zombies: 300
-     spawns-per-tick: 5
-     tps-threshold: 18.5
+     tps-threshold: 15.0
      check-interval-ticks: 100
    ```
-2. **Test Spawn Rate Limiting**: Spawn large horde and observe rate limiting
-3. **Test TPS Threshold**: Verify pause/resume behavior matches threshold
+2. **Test Entity Cap**: Spawn a large horde past `max-total-zombies` and confirm the furthest zombies are culled
+3. **Test TPS Threshold**: Verify spawning pauses below `tps-threshold` and resumes once TPS recovers
 
 ### Expected Results
 - All new settings recognized and applied

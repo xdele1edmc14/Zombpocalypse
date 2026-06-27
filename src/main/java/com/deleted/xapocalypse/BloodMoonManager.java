@@ -286,6 +286,34 @@ public class BloodMoonManager {
                 }
 
                 if (isActive(mainWorld)) {
+                    // Bug C1 fix: fire the natural blood-moon "start" exactly once. isActive() returns
+                    // true on the FIRST night tick of an interval day — before the old else-branch
+                    // start code could ever run — so that code was unreachable and natural blood
+                    // moons silently never broadcast, never persisted, and never triggered the
+                    // MythicMobs spawn loop. Detect the transition here instead: active, but not yet
+                    // persisted and not forced. Once persisted=true this won't fire again, and forced
+                    // blood moons already ran onBloodMoonStart() from forceBloodMoon().
+                    if (!bloodMoonPersisted && !forcedBloodMoon) {
+                        long currentDay = mainWorld.getFullTime() / 24000L;
+                        bloodMoonPersisted = true;
+                        persistedBloodMoonDay = currentDay;
+                        save();
+
+                        MythicMobsManager mm = plugin.getMythicMobsManager();
+                        if (mm != null) {
+                            mm.onBloodMoonStart();
+                        }
+
+                        plugin.getLogger().info("Natural blood moon started on day " + currentDay);
+                        plugin.debugLog("Blood moon persistence: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay);
+
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            if (plugin.isWorldEnabled(p.getWorld()) || plugin.isLobbyWorld(p.getWorld())) {
+                                p.sendMessage(plugin.getMessages().get("bloodmoon.natural-start"));
+                            }
+                        }
+                    }
+
                     long time = mainWorld.getTime();
 
                     // CRITICAL FIX: Force night time during blood moon
@@ -391,32 +419,11 @@ public class BloodMoonManager {
                         }
                     }
 
-                    // Check for natural blood moon start
-                    if (time >= 13000 && time <= 23000) { // Night time
-                        long currentDay = mainWorld.getFullTime() / 24000L;
-                        if (currentDay % bloodMoonInterval == 0 && !bloodMoonPersisted) {
-                            // CRITICAL FIX: Start new blood moon and save state
-                            bloodMoonPersisted = true;
-                            persistedBloodMoonDay = currentDay;
-                            save();
-
-                            // --- MythicMobs: guaranteed Mutant + tick loop ---
-                            MythicMobsManager mm = plugin.getMythicMobsManager();
-                            if (mm != null) {
-                                mm.onBloodMoonStart();
-                            }
-
-                            plugin.getLogger().info("Natural blood moon started on day " + currentDay);
-                            plugin.debugLog("Blood moon persistence: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay);
-
-                            // Notify players
-                            for (Player p : Bukkit.getOnlinePlayers()) {
-                                if (plugin.isWorldEnabled(p.getWorld()) || plugin.isLobbyWorld(p.getWorld())) {
-                                    p.sendMessage("§4§l☠ BLOOD MOON HAS RISEN! ☠");
-                                }
-                            }
-                        }
-                    }
+                    // Bug C1 fix: natural blood-moon START is now handled in the isActive() branch
+                    // above. The block that used to live here was unreachable (isActive() returns
+                    // true on the first night tick of an interval day, so this else is never entered
+                    // during a natural blood moon). Only the day-time persistence cleanup above
+                    // remains in this branch.
                 }
             }
         }.runTaskTimer(plugin, 20L, 20L);

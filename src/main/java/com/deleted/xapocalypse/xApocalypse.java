@@ -173,6 +173,13 @@ public class xApocalypse extends JavaPlugin {
             bloodMoon.removeBossBar();
         }
 
+        // Bug C2 fix: restore any zombies still mid rise-animation BEFORE tasks are cancelled and
+        // the worlds save, otherwise their cancelled animation timers leave them permanently
+        // invulnerable, AI-less and frozen (the LOD system never recovers an ANIMATING-tagged zombie).
+        if (undeadSpawner != null) {
+            undeadSpawner.finalizeAllAnimations();
+        }
+
         Bukkit.getScheduler().cancelTasks(this);
     }
 
@@ -196,6 +203,11 @@ public class xApocalypse extends JavaPlugin {
     /** Full reload pipeline shared by /xa reload. Mirrors the original onCommand("reload") sequence. */
     public void reloadAll() {
         Bukkit.getScheduler().cancelTasks(this);
+        // Bug C2 fix: cancelTasks above killed any in-flight rise-animation timers without finalizing
+        // them; restore those zombies now so the reload can't strand invulnerable, AI-less zombies.
+        if (undeadSpawner != null) {
+            undeadSpawner.finalizeAllAnimations();
+        }
         reloadConfig();
         loadConfigValues();
         messageManager.reload();

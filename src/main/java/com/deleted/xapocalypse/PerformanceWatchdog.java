@@ -95,31 +95,29 @@ public class PerformanceWatchdog {
     private void checkPerformance() {
         try {
             double currentTPS = getCurrentTPS();
-            
-            // DISABLE TPS-BASED PAUSING: Only pause if TPS is critically low (< 10)
-            if (currentTPS < 10.0) {
-                plugin.debugLog("CRITICAL TPS: " + currentTPS + " - Pausing all spawning");
+            // Minor fix: honor performance.tps-threshold (previously the config value was ignored and
+            // the thresholds were hardcoded 10/15). Pause new spawns below the threshold; resume once
+            // TPS recovers a little above it (hysteresis avoids rapid flapping around the threshold).
+            double tpsThreshold = plugin.getConfig().getDouble("performance.tps-threshold", 15.0);
+
+            if (currentTPS < tpsThreshold) {
+                plugin.debugLog("Low TPS: " + currentTPS + " (< " + tpsThreshold + ") - pausing spawning");
                 pauseAllSpawning();
-                return;
+            } else if (currentTPS >= tpsThreshold + 1.5) {
+                resumeSpawning();
             }
-            
-            // Check entity count limits for all worlds
+
+            // Entity-count culling always runs (it helps TPS recover).
             for (World world : Bukkit.getWorlds()) {
                 if (!plugin.isWorldEnabled(world)) continue;
-                
+
                 int zombieCount = countZombiesInWorld(world);
                 int maxZombies = plugin.getConfig().getInt("performance.max-total-zombies", 300);
-                
-                // Dynamic caps based on config
+
                 if (zombieCount > maxZombies) {
                     plugin.debugLog("Zombie count exceeded limit in " + world.getName() + ": " + zombieCount + " > " + maxZombies);
                     cullZombiesInWorld(world, zombieCount - maxZombies);
                 }
-            }
-            
-            // Resume spawning if TPS is healthy
-            if (currentTPS >= 15.0) {
-                resumeSpawning();
             }
         } catch (Exception e) {
             plugin.getLogger().warning("PerformanceWatchdog error: " + e.getMessage());
@@ -134,8 +132,10 @@ public class PerformanceWatchdog {
             if (tps != null && tps.length > 0) {
                 return tps[0]; // 1 minute average
             }
-        } catch (Exception e) {
-            plugin.debugLog("Could not get TPS from Paper API: " + e.getMessage());
+        } catch (Throwable t) {
+            // Throwable (not just Exception) so a NoSuchMethodError on very old Spigot builds
+            // without getTPS() can't kill the watchdog task.
+            plugin.debugLog("Could not get TPS from server API: " + t.getMessage());
         }
 
         // Fallback if something goes wrong

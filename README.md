@@ -174,8 +174,7 @@ bloodmoon:
 # Performance guards
 performance:
   max-total-zombies: 300
-  spawns-per-tick: 100
-  tps-threshold: 18.5
+  tps-threshold: 15.0
   check-interval-ticks: 100
 
 # Optional MythicMobs "Mutant" boss
