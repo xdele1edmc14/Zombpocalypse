@@ -262,7 +262,7 @@ cleanup:
 ```yaml
 mythicmobs:
   integration:
-    mob-type: "modelfoundry_mutant_zombie_strong"  # internal MythicMobs mob name
+    mob-type: "ExampleMutantBoss"  # internal MythicMobs mob name (placeholder — use your own)
     max-global-cap: 15           # max alive server-wide (0 = no cap, not recommended)
     spawn-chance: 0.05           # per player per tick-interval (0.05 = 5%)
     spawn-tick-interval: 100     # ticks between rolls (100 = every 5 s)

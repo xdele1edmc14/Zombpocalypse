@@ -12,7 +12,7 @@ xApocalypse can optionally spawn a **Mutant** boss — a custom [MythicMobs](htt
 On startup the plugin verifies the mob type and logs whether the hook succeeded:
 
 ```
-[MythicMobs] Hooked in. Mob type 'modelfoundry_mutant_zombie_strong' verified.
+[MythicMobs] Hooked in. Mob type 'ExampleMutantBoss' verified.
 ```
 
 If the mob name can't be found, you'll get a warning and Mutant spawning won't occur until it's fixed.
@@ -62,8 +62,9 @@ The cap is maintained carefully:
 ```yaml
 mythicmobs:
   integration:
-    # Internal MythicMobs mob name (case-sensitive, must match your .yml mob file)
-    mob-type: "modelfoundry_mutant_zombie_strong"
+    # Internal MythicMobs mob name (case-sensitive, must match your .yml mob file).
+    # ExampleMutantBoss is only a placeholder — point this at any mob you define in MythicMobs.
+    mob-type: "ExampleMutantBoss"
 
     # Max alive server-wide at once. 0 disables the cap (not recommended).
     max-global-cap: 15

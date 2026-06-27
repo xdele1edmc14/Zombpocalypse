@@ -181,7 +181,7 @@ performance:
 # Optional MythicMobs "Mutant" boss
 mythicmobs:
   integration:
-    mob-type: "modelfoundry_mutant_zombie_strong"
+    mob-type: "ExampleMutantBoss"   # replace with any mob name from your MythicMobs config
     max-global-cap: 15
     spawn-chance: 0.05
     spawn-tick-interval: 100

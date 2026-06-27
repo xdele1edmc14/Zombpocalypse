@@ -184,8 +184,10 @@ cleanup:
 mythicmobs:
   integration:
 
-    # The internal MythicMobs mob name (case-sensitive, must match your .yml mob file)
-    mob-type: "modelfoundry_mutant_zombie_strong"
+    # The internal MythicMobs mob name (case-sensitive, must match your .yml mob file).
+    # This is just an example — replace it with the internal name of any mob you define
+    # in MythicMobs (e.g. the name from your own MythicMobs/Mobs/*.yml file).
+    mob-type: "ExampleMutantBoss"
 
     # Maximum number of this mob allowed alive across the entire server at once.
     # Set to 0 to disable the cap (not recommended).
