@@ -1,4 +1,4 @@
-<h1 align="center">☠️ xApocalypse Plugin ☣️</h1>
+<h1 align="center">☠️ xApocalypse ☣️</h1>
 
 <p align="center">
   <img src="https://i.imgur.com/M0z9eVF.png" width="600" alt="xApocalypse Banner"/>
@@ -6,103 +6,199 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk"/>
-  <img src="https://img.shields.io/badge/Spigot-1.18%2B-red?style=for-the-badge&logo=spigotmc"/>
+  <img src="https://img.shields.io/badge/Spigot/Paper-1.21-red?style=for-the-badge&logo=spigotmc"/>
   <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Version-1.2-brightgreen?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/Version-1.0.0-brightgreen?style=for-the-badge"/>
 </p>
 
 <p align="center">
   <i>A brutal, customizable zombie apocalypse plugin for survival servers 🌑🧟</i><br>
-  <b>Optimized. Configurable. Terrifying.</b>
+  <b>13 zombie classes. Blood Moons. Scent tracking. Optimized for performance.</b>
 </p>
-
-## ⚙️ Core Features
-
-* **Dynamic Horde Spawning:**
-
-  * Hordes spawn every **60 seconds** (1200 ticks).
-  * Base horde size: **5 zombies**.
-
-* **Enhanced Combat:**
-
-  * **30.0 Health** per zombie.
-  * **8.0 Damage**.
-  * **0.35 Speed**.
-
-* **Customizable Spawning:**
-
-  * **25% chance** to spawn during daytime.
-  * Natural mob **blacklist/whitelist** support.
-  * Default blacklist: `SKELETON`, `WITHER_SKELETON`, `SPIDER`.
-
-* **World Control:** Active only in configured worlds: `world`, `world_nether`, `world_the_end`.
-
-* **Zombie Guts:** Grants temporary zombie immunity.
-
-* **Bloodmoon:** Occurs every 10 days (customizable) with buffed zombie attributes and spawn rates.
-
-* **GriefPrevention Support:** Zombies do **not** spawn inside GP claims.
 
 ---
 
-## 🛠️ Configuration (`config.yml` Overview)
+## ⚙️ Core Features
 
-Below is a cleaned, readable version of the configuration with explanations.
+* **🧟 13 Zombie Classes** — Every horde zombie is rolled from a weighted pool of specialized classes, each with its own AI, stats, and colored nametag (see [Zombie Classes](#-zombie-classes)).
+
+* **🌑 Dynamic Horde Spawning** — Hordes spawn around players on a configurable timer, with surface-snapping (no suffocating in hills or void-dropping) and an optional ground-rise animation.
+
+* **🩸 Blood Moon Events** — Every *X* in-game days the night turns hostile: zombie health, damage, speed, and horde size are all multiplied, with a server-wide boss bar countdown. Can be triggered or stopped manually.
+
+* **👃 Scent Tracking** — Player activity (sprinting, killing) builds a *scent* that attracts larger hordes. Scent decays over time, so staying quiet keeps you safer.
+
+* **🫀 Zombie Guts** — A rare drop that can be consumed for 10 minutes of zombie immunity, at the cost of reduced max health.
+
+* **🐉 MythicMobs Integration** — Optionally spawns a capped, server-wide "Mutant" boss mob near players using your own MythicMobs definition.
+
+* **🛡️ GriefPrevention Support** — Natural horde zombies will not spawn inside protected claims.
+
+* **🚦 Performance Guards** — Global entity caps, per-tick spawn rate limiting, and a TPS watchdog that throttles spawning when the server lags.
+
+* **🎨 Visuals & Localization** — Color-coded nametags and a fully translatable `messages.yml` supporting both **MiniMessage** (`<gradient>`, `<rainbow>`, `<#hex>`) and legacy (`&a`, `§c`) formatting.
+
+---
+
+## 🧟 Zombie Classes
+
+Horde zombies are assigned a class from a weighted pool (configurable under `zombie-classes.weights`).
+
+| Class | Role |
+|-------|------|
+| ⚔ **Swarmer** | Basic zombie — the bulk of the horde. |
+| ⚡ **Runner** | Fast and fragile (reduced HP, higher speed). |
+| ⛏ **Miner** | Breaks through configured blocks to reach you. |
+| ❤ **Nurse** | Heals nearby zombies on a cooldown. |
+| ☠ **Spitter** | Ranged attacker that applies poison. |
+| 🔥 **Scorched** | Sets targets on fire on hit. |
+| ⚔ **Psychopath** | Berserker that charges with bonus damage and bleed. |
+| ⛨ **Tank** | High HP and knockback resistance. |
+| 🕸 **Webber** | Places cobwebs to slow and trap you. |
+| 💣 **Burster** | Explodes when it gets close (with a fuse warning). |
+| ❄ **Frost** | Slows targets on hit. |
+| ★ **Veteran** | A permanent, upgraded zombie with bonus attack. |
+
+> Per-class behavior (break delays, heal radius, projectile cooldowns, explosion power, etc.) is tunable in `config.yml`.
+
+---
+
+## 🎮 Commands
+
+Everything lives under one root command: **`/xapocalypse`**, with aliases **`/xa`** and **`/zombie`**.
+
+| Command | Description | Permission |
+|---------|-------------|------------|
+| `/xa help` | Show the (permission-aware) command list | — |
+| `/xa spawn <type\|horde\|mutant> [count] [radius]` | Spawn zombies of a class, a mixed horde, or the MythicMobs mutant | `xapocalypse.command.spawn` |
+| `/xa item <item> [player]` | Give a special item (e.g. `zombie_guts`) | `xapocalypse.admin` |
+| `/xa forcebloodmoon [minutes]` *(alias `fbm`)* | Force a Blood Moon (default duration from config, max 120 min) | `xapocalypse.admin` |
+| `/xa stopbloodmoon` *(alias `sbm`)* | End the active Blood Moon | `xapocalypse.admin` |
+| `/xa reload` | Reload `config.yml` and `messages.yml` | `xapocalypse.admin` |
+
+### Permissions
+
+| Node | Default | Grants |
+|------|---------|--------|
+| `xapocalypse.admin` | `op` | All admin sub-commands (reload, item, blood moon control) |
+| `xapocalypse.command.spawn` | `op` | Spawning zombies via `/xa spawn` |
+
+---
+
+## 🛠️ Configuration
+
+A trimmed overview of `config.yml`. See the file itself for inline comments on every option.
 
 ```yaml
-# Enables detailed console logs
 debug-mode: false
 
-# Worlds where the plugin is active
+# Worlds where horde spawning is active
 enabled-worlds:
   - world
   - world_nether
   - world_the_end
 
-# External plugin integration
+# Spawning + bosses disabled here, but boss bars/other systems still work
+lobby-worlds:
+  - lobby
+
 hooks:
   griefprevention:
     enabled: true
     prevent-spawning-in-claims: true
 
-# Zombie attribute settings
+# Weighted pool of zombie classes (should total ~1.0) + per-class tuning
+zombie-classes:
+  enabled: true
+  weights:
+    SWARMER: 0.35
+    RUNNER: 0.18
+    MINER: 0.10
+    # ... NURSE, SPITTER, SCORCHED, PSYCHOPATH, TANK, WEBBER, BURSTER, FROST
+
+# Player activity attracts bigger hordes
+scent-system:
+  enabled: true
+  max-scent: 100.0
+  sprint-add: 1.5
+  kill-add: 0.8
+  decay-amount: 1.2
+  decay-interval-seconds: 4
+
+# Base stats for a plain zombie (before class/blood moon modifiers)
 zombie-settings:
-  health: 30.0
-  damage: 8.0
-  speed: 0.35
-
-  allow-baby-zombies: true
+  health: 25.0
+  damage: 6.0
+  speed: 0.32
+  allow-baby-zombies: false
   allow-zombie-villagers: true
-
   zombie-guts:
     enabled: true
+    drop:
+      enabled: true
+      chance: 0.02            # 2% per eligible kill
+      require-player-kill: true
 
-# Apocalypse and horde spawning behavior
+# Horde spawning behavior
 apocalypse-settings:
-  spawn-rate: 100            # Ticks between spawn attempts
-  spawn-radius: 40           # Radius around players
-  base-horde-size: 10
-  horde-variance: 10         # +- variance
-  day-spawn-chance: 1.0      # 1.0 = 100%
-  ignore-light-level: false
+  spawn-rate: 1500            # Ticks between spawn cycles
+  spawn-radius: 35
+  base-horde-size: 6
+  horde-variance: 4
+  max-single-horde-size: 30
+  day-spawn-chance: 0.02      # 2% chance to spawn during the day
+  rising-animation: true
   use-mob-blacklist: true
-  mob-list:
-    - SKELETON
-    - WITHER_SKELETON
-    - SPIDER
+  mob-list: [SKELETON, WITHER_SKELETON, SPIDER, CREEPER]
 
-# Blood Moon event configuration
+# Blood Moon
 bloodmoon:
   enabled: true
-  interval-days: 10          # Every X in-game days
-  bossbar-title: "§4§l☠ BLOOD MOON ☠ §cRemaining: %time%"
-
+  interval-days: 14
+  bossbar-title: "&4&l☠ BLOOD MOON ☠ &cRemaining: %time%"
   multipliers:
-    health: 2.0              # Doubles zombie HP
-    damage: 1.5              # 8 -> 12
-    speed: 1.2
-    horde-size: 2.0          # Doubles horde size
+    health: 1.5
+    damage: 1.3
+    speed: 1.1
+    horde-size: 1.5
+  force-duration-minutes: 10
+
+# Performance guards
+performance:
+  max-total-zombies: 300
+  spawns-per-tick: 100
+  tps-threshold: 18.5
+  check-interval-ticks: 100
+
+# Optional MythicMobs "Mutant" boss
+mythicmobs:
+  integration:
+    mob-type: "modelfoundry_mutant_zombie_strong"
+    max-global-cap: 15
+    spawn-chance: 0.05
+    spawn-tick-interval: 100
+    spawn-radius: { min: 20, max: 40 }
 ```
+
+---
+
+## 📦 Requirements & Installation
+
+* **Server:** Spigot / Paper, API version **1.21**
+* **Java:** **21+**
+* **Soft dependencies (optional):** [GriefPrevention](https://www.spigotmc.org/resources/griefprevention.1884/), [MythicMobs](https://www.spigotmc.org/resources/mythicmobs.5702/)
+
+1. Drop `xApocalypse-1.0.0.jar` into your server's `plugins/` folder.
+2. Start the server once to generate `config.yml` and `messages.yml`.
+3. Edit the configs to taste and run `/xa reload`.
+
+### Building from source
+
+```bash
+mvn clean package
+```
+
+The compiled jar lands in `target/`.
 
 ---
 
@@ -113,17 +209,20 @@ bloodmoon:
   <br/>
 
 ### Daytime
-
 <img src="https://i.imgur.com/ImSWNd1.png" alt="Daytime Scene" width="800"/>
 
 ### Nighttime
-
 <img src="https://i.imgur.com/HuBR6TI.png" alt="Nighttime Scene" width="800"/>
 
-### Bloodmoon
-
+### Blood Moon
 <img src="https://i.imgur.com/PW2TPAS.png" alt="Bloodmoon Scene" width="800"/>
 
 *Note: Images may not reflect the latest version.*
 
 </details>
+
+---
+
+<p align="center">
+  <i>Created by <b>xDele1ed</b> • Licensed under GPLv3</i>
+</p>

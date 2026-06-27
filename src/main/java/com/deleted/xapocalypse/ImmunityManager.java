@@ -26,8 +26,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -51,7 +52,15 @@ public class ImmunityManager {
     private FileConfiguration dataConfig;
 
     // --- IMMUNITY TRACKING ---
-    private final List<UUID> immunePlayers = new ArrayList<>();
+    // Bug fix: this was a List<UUID>, which permitted DUPLICATE entries. loadImmunityData()
+    // (on enable/reload) and onPlayerJoin() both add the UUID with no guard, while onPlayerQuit()
+    // intentionally leaves the entry to persist immunity — so a restart or reconnect during an
+    // active immunity listed the player twice ([uuid, uuid]). cleanUpPlayerState()'s
+    // List.remove() then stripped only ONE copy, leaving the player permanently flagged immune in
+    // memory (zombies ignored them; re-consuming Zombie Guts said "already immune") even though
+    // data.yml was correctly cleared. A Set cannot hold duplicates, so every expiry path now fully
+    // clears membership. LinkedHashSet keeps deterministic iteration order.
+    private final Set<UUID> immunePlayers = new LinkedHashSet<>();
     private final Map<UUID, BossBar> immunityBossBars = new HashMap<>();
     private final Map<UUID, Long> immunityEndTime = new HashMap<>();
     private final Map<UUID, Double> originalHealth = new HashMap<>();
