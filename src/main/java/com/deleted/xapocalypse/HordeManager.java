@@ -3,7 +3,6 @@ package com.deleted.xapocalypse;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -14,18 +13,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Owns the core horde-spawning mechanics: the per-player horde spawn math (blood-moon and
- * scent multipliers, surface snapping, rising animation), builder-block tracking + auto
- * cleanup, the zombie AI tick loop (gated by the LOD system), and the {@code isPluginSpawning}
- * flag that lets plugin-spawned zombies bypass the CreatureSpawnEvent mob-list gate.
+ * scent multipliers, surface snapping, rising animation), the zombie AI tick loop (gated by
+ * the LOD system), and the {@code isPluginSpawning} flag that lets plugin-spawned zombies
+ * bypass the CreatureSpawnEvent mob-list gate.
  *
  * Extracted verbatim from the original xApocalypse monolith (Bug M1 single-horde cap,
  * Bug C1/M2/20 plugin-spawning bracketing, Bug 19 animating-tag handling preserved).
@@ -38,10 +32,6 @@ public class HordeManager {
 
     // Bug 4 & 20 fix: flag so onEntitySpawn bypasses the mob-list check for plugin-spawned entities
     private boolean isPluginSpawning = false;
-
-    // --- BUILDER BLOCK TRACKING ---
-    private final Map<Location, Long> builderBlocks = new HashMap<>(); // Location -> Timestamp
-    private final Map<Location, UUID> builderBlockOwners = new HashMap<>(); // Location -> Zombie UUID
 
     public HordeManager(xApocalypse plugin, xApocalypseUtils utils, UndeadSpawner undeadSpawner) {
         this.plugin = plugin;
@@ -56,44 +46,6 @@ public class HordeManager {
 
     public boolean isPluginSpawning() {
         return isPluginSpawning;
-    }
-
-    // === BUILDER BLOCK TRACKING ===
-
-    public void trackBuilderBlock(Location loc, UUID zombieUUID) {
-        builderBlocks.put(loc, System.currentTimeMillis());
-        builderBlockOwners.put(loc, zombieUUID);
-    }
-
-    public void startBuilderCleanupTask() {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (builderBlocks.isEmpty()) return;
-
-                long now = System.currentTimeMillis();
-                int cleanupSeconds = plugin.getConfig().getInt("cleanup.builder-auto-cleanup-seconds", 300);
-                long cleanupMs = cleanupSeconds * 1000L;
-
-                List<Location> toRemove = new ArrayList<>();
-
-                for (Map.Entry<Location, Long> entry : builderBlocks.entrySet()) {
-                    if (now - entry.getValue() >= cleanupMs) {
-                        Location loc = entry.getKey();
-                        if (loc.getBlock().getType() == Material.DIRT) {
-                            loc.getBlock().setType(Material.AIR);
-                            plugin.debugLog("Cleaned up builder block at " + loc);
-                        }
-                        toRemove.add(loc);
-                    }
-                }
-
-                for (Location loc : toRemove) {
-                    builderBlocks.remove(loc);
-                    builderBlockOwners.remove(loc);
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 100L); // Check every 5 seconds
     }
 
     // === AI TICK SYSTEM ===

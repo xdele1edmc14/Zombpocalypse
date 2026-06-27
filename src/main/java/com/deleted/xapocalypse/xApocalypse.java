@@ -122,7 +122,6 @@ public class xApocalypse extends JavaPlugin {
         getCommand("xapocalypse").setTabCompleter(tabCompleter);
 
         startSpawnerTask();
-        horde.startBuilderCleanupTask();
         immunity.startCheckTask();
 
         // Bug C2 fix: start the watchdog AFTER startSpawnerTask() so its tasks survive
@@ -216,7 +215,6 @@ public class xApocalypse extends JavaPlugin {
             mythicMobsManager.loadConfig();
         }
         startSpawnerTask();
-        horde.startBuilderCleanupTask();
         immunity.startCheckTask(); // CRITICAL FIX: Restart immunity check task on reload
         // Bug C2 fix: reload the watchdog AFTER startSpawnerTask() so its tasks
         // are not killed by the cancelTasks(this) call inside startSpawnerTask().
@@ -312,10 +310,6 @@ public class xApocalypse extends JavaPlugin {
     /** Called by UndeadSpawner before/after world.spawnEntity so onEntitySpawn skips the mob-list check. */
     void setPluginSpawning(boolean value) {
         horde.setPluginSpawning(value);
-    }
-
-    public void trackBuilderBlock(Location loc, UUID zombieUUID) {
-        horde.trackBuilderBlock(loc, zombieUUID);
     }
 
     void spawnZombiesNearPlayer(Player player, boolean isDayHordeSpawn) {

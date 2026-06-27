@@ -58,7 +58,6 @@ When enabled:
 
 - **Natural horde zombies** won't spawn inside protected claims.
 - **Miner** zombies won't break blocks inside claims.
-- **Builder** zombies won't place blocks inside claims.
 - **MythicMobs Mutants** won't spawn inside claims.
 
 This lets players build safe havens that the apocalypse respects.

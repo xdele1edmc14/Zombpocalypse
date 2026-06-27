@@ -30,15 +30,13 @@ public class xApocalypseUtils {
     public static final NamespacedKey BURSTER_PRIMED_KEY = new NamespacedKey("xapocalypse", "burster_primed");
     // Bug 2 fix: dedicated PDC key for acid spit projectiles (ZOMBIE_TYPE_KEY belongs to zombie entities, not projectiles)
     public static final NamespacedKey ACID_SPIT_KEY = new NamespacedKey("xapocalypse", "acid_spit");
-    // Bug 5 fix: static constant avoids allocating a new NamespacedKey every tick in tickBuilderAI
-    public static final NamespacedKey LAST_BUILD_KEY = new NamespacedKey("xapocalypse", "last_build");
     // Bug 19 fix: marks a zombie as mid-rise-animation so the LOD system won't call setAI(false) on it
     public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("xapocalypse", "animating");
     // Marker placed on the Zombie Guts ItemStack so it is identified by PDC rather than display name.
     public static final NamespacedKey ZOMBIE_GUTS_KEY = new NamespacedKey("xapocalypse", "zombie_guts_item");
 
     public enum ZombieType {
-        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, BUILDER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
+        SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
     }
 
     private final Map<ZombieType, Double> spawnWeights = new HashMap<>();
@@ -57,8 +55,8 @@ public class xApocalypseUtils {
         spawnWeights.clear();
         totalWeight = 0.0;
         for (ZombieType type : ZombieType.values()) {
-            // VETERAN and BUILDER are not spawned randomly (VETERAN from kills, BUILDER special)
-            if (type == ZombieType.VETERAN || type == ZombieType.BUILDER) continue;
+            // VETERAN is not spawned randomly (it is transformed from kills, never rolled)
+            if (type == ZombieType.VETERAN) continue;
             // Bug M4 fix: honor per-class enabled flags so disabling a class removes it from the
             // random spawn pool (previously these flags were never read).
             if (!isClassEnabled(type)) continue;
@@ -129,7 +127,6 @@ public class xApocalypseUtils {
             case PSYCHOPATH -> "§c⚔ Psychopath";
             case SCORCHED -> "§4🔥 Scorched";
             case TANK -> "§8⛨ Tank";
-            case BUILDER -> "§5🏗 Builder";
             case VETERAN -> "§e★ Veteran";
             case WEBBER -> "§8🕸 Webber";
             case BURSTER -> "§c💣 Burster";
@@ -243,14 +240,6 @@ public class xApocalypseUtils {
                 setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed + speedBonus);
                 applyFireResistance(zombie); // Bug 15 fix
             }
-            case BUILDER -> {
-                // Builder zombie - places blocks, slower movement
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 1.1);
-                zombie.setHealth(baseHealth * 1.1);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.9);
-                applyFireResistance(zombie); // Bug 15 fix
-            }
             case VETERAN -> {
                 // Elite zombie - transformed from kills
                 double attackBonus = plugin.getConfig().getDouble("zombie-classes.veteran.attack-bonus", 4.0);
@@ -325,7 +314,6 @@ public class xApocalypseUtils {
             case SPITTER -> tickSpitterAI(zombie);
             case SCORCHED -> tickScorchedAI(zombie);
             case PSYCHOPATH -> tickPsychopathAI(zombie);
-            case BUILDER -> tickBuilderAI(zombie);
             // SWARMER, RUNNER, TANK, VETERAN have no special AI behaviors
             default -> { /* No special AI for this type */ }
         }
@@ -443,45 +431,6 @@ public class xApocalypseUtils {
                 psycho.getWorld().playSound(psycho.getLocation(), Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 1.5f);
                 psycho.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, psycho.getLocation().add(0, 2, 0), 5);
                 psycho.getPersistentDataContainer().set(LAST_RAGE_KEY, PersistentDataType.LONG, now);
-            }
-        }
-    }
-
-    private void tickBuilderAI(Zombie builder) {
-        LivingEntity target = builder.getTarget();
-        if (target == null) return;
-
-        long now = System.currentTimeMillis();
-        // Bug 5 fix: use the static LAST_BUILD_KEY constant — no new allocation every tick
-        Long lastBuild = builder.getPersistentDataContainer().get(LAST_BUILD_KEY, PersistentDataType.LONG);
-        int delay = plugin.getConfig().getInt("zombie-classes.builder.place-delay-ticks", 40) * 50;
-
-        if (lastBuild != null && (now - lastBuild) < delay) return;
-
-        // Builder places blocks to create paths/obstacles
-        Vector direction = target.getLocation().toVector().subtract(builder.getLocation().toVector()).normalize();
-        Block placeBlock = builder.getLocation().add(direction).getBlock();
-        Block belowBlock = placeBlock.getRelative(0, -1, 0);
-
-        // Only place if target block is air and below block is solid
-        if (placeBlock.getType() == Material.AIR && belowBlock.getType().isSolid()) {
-            if (!isInsideClaim(placeBlock.getLocation())) {
-                Material buildMaterial = Material.DIRT; // Default builder material
-                String configMaterial = plugin.getConfig().getString("zombie-classes.builder.block-type", "DIRT");
-                try {
-                    buildMaterial = Material.valueOf(configMaterial);
-                } catch (IllegalArgumentException e) {
-                    buildMaterial = Material.DIRT;
-                }
-
-                placeBlock.setType(buildMaterial);
-                builder.getWorld().playSound(builder.getLocation(), Sound.BLOCK_GRAVEL_PLACE, 1.0f, 1.0f);
-                builder.getWorld().spawnParticle(Particle.BLOCK, placeBlock.getLocation().add(0.5, 0.5, 0.5), 5, buildMaterial.createBlockData());
-                
-                // Track the block for cleanup
-                plugin.trackBuilderBlock(placeBlock.getLocation(), builder.getUniqueId());
-                
-                builder.getPersistentDataContainer().set(LAST_BUILD_KEY, PersistentDataType.LONG, now);
             }
         }
     }

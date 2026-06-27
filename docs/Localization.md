@@ -10,7 +10,7 @@ You can write messages in either style — even mix them across different keys:
 
 | Style | Examples |
 |-------|----------|
-| **MiniMessage** | `<gradient:red:blue>Text</gradient>`, `<rainbow>Text</rainbow>`, `<#FF5555>Hex</color>`, `<bold>`, `<hover>`, `<click>` |
+| **MiniMessage** | `<gradient:red:blue>Text</gradient>`, `<rainbow>Text</rainbow>`, `<#FF5555>Hex</#FF5555>`, `<bold>`, `<hover>`, `<click>` |
 | **Legacy** | `&a`, `&b`, `&l`, `&n`, `&4`, `§c`, … |
 
 A message is parsed as **MiniMessage** if it contains `<` together with `gradient`, `rainbow`, `hover`, `click`, or `#`; otherwise it's treated as legacy `&`/`§` codes. If MiniMessage parsing ever fails, it gracefully falls back to legacy parsing.
@@ -26,14 +26,12 @@ player-not-found: "&cPlayer not found: {0}"
 reload-error: "&cError reloading: {0}"
 ```
 
-The Blood Moon boss-bar title uses a named placeholder instead:
+The Blood Moon boss-bar title is configured in **`config.yml`** (not `messages.yml`) and uses the `%time%` placeholder:
 
 ```yaml
 bloodmoon:
-  bossbar-title: "<gradient:dark_red:red>☠ BLOOD MOON ☠</gradient> <white>Remaining: {0}</white>"
+  bossbar-title: "&4&l☠ BLOOD MOON ☠ &cRemaining: %time%"
 ```
-
-(The boss bar also accepts `%time%` in the `config.yml` `bloodmoon.bossbar-title` key.)
 
 ---
 
@@ -43,16 +41,11 @@ The file is organized into sections. Highlights:
 
 | Section | Controls |
 |---------|----------|
-| `prefix`, `no-permission`, `player-only`, … | General/system messages |
+| `prefix`, `no-permission`, `reload-success`, `reload-error`, `player-not-found` | General/system messages |
 | `commands.help.*` | The `/xa help` screen lines |
-| `commands.spawn.*`, `commands.item.*` | Command feedback |
-| `zombies.*` | **Zombie class nametag labels** (e.g. `swarmer: "&7⚔ Swarmer"`) |
-| `bloodmoon.*` | Blood Moon start/end/force broadcasts and boss-bar title |
-| `mythicmobs.*` | Mutant spawn/kill broadcasts |
+| `commands.item.*`, `commands.unknown` | Command feedback |
+| `bloodmoon.*` | Blood Moon broadcasts (natural rise + force-start) |
 | `immunity.*` | Zombie Guts item name, lore, and immunity messages |
-| `scent.*` | Scent warning messages |
-| `performance.*` | TPS/entity warning messages |
-| `mutations.*`, `debug.*` | Mutation flavor text and debug strings |
 
 ---
 

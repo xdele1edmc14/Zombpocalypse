@@ -32,7 +32,7 @@ See **[Worlds & Integrations](Worlds-and-Integrations.md)** for the full behavio
 hooks:
   griefprevention:
     enabled: true
-    prevent-spawning-in-claims: true   # natural zombies/miners/builders/mutants respect claims
+    prevent-spawning-in-claims: true   # natural zombies/miners/mutants respect claims
 ```
 
 ---
@@ -44,7 +44,7 @@ zombie-classes:
   enabled: true
 
   # Weighted spawn pool (should total ~1.0). Higher = more common.
-  # BUILDER and VETERAN are excluded from this pool.
+  # VETERAN is excluded from this pool.
   weights:
     SWARMER: 0.35
     RUNNER: 0.18
@@ -131,8 +131,6 @@ zombie-classes:
     power: 3.0                # explosion power
     break_blocks: true
 ```
-
-> **Builder note:** the Builder class reads `zombie-classes.builder.place-delay-ticks` and `zombie-classes.builder.block-type` (default `DIRT`). It isn't in the shipped config by default because Builders aren't randomly spawned, but you can add that section to tune `/xa spawn BUILDER`.
 
 See **[Zombie Classes](Zombie-Classes.md)** for what each value does in play.
 
@@ -243,13 +241,6 @@ See **[Performance & LOD](Performance-and-LOD.md)**.
 visuals:
   use-nametags: true             # color-coded names above zombies
   nametag-always-visible: true   # false = only visible when looked at
-```
-
-## Cleanup
-
-```yaml
-cleanup:
-  builder-auto-cleanup-seconds: 300  # seconds before blocks placed by Builder zombies are removed
 ```
 
 ---

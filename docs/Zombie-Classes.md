@@ -18,7 +18,7 @@ During a [Blood Moon](Blood-Moon.md) these base values are multiplied before the
 
 ## Spawn Weights
 
-The weights below are the shipped defaults. They should total roughly `1.0`; a higher weight means that class is more common. `BUILDER` and `VETERAN` are **excluded** from the random pool (see [Special Classes](#special-classes)).
+The weights below are the shipped defaults. They should total roughly `1.0`; a higher weight means that class is more common. `VETERAN` is **excluded** from the random pool (see [Special Classes](#special-classes)).
 
 | Class | Weight | Share |
 |-------|-------:|------:|
@@ -120,14 +120,7 @@ The weights below are the shipped defaults. They should total roughly `1.0`; a h
 
 ## Special Classes
 
-These two are **never** rolled from the random spawn pool.
-
-### 🏗 Builder
-*Builds obstacles and bridges toward you.* Spawned only via `/xa spawn BUILDER` (or other deliberate means).
-
-- **Health:** `× 1.1` · **Damage:** `× 0.8` · **Speed:** `× 0.9`
-- **AI:** periodically **places a block** (default `DIRT`, via `zombie-classes.builder.block-type`) toward its target to build paths/obstacles, on a cooldown of `place-delay-ticks` (default 40). Won't build inside claims.
-- **Cleanup:** placed blocks are tracked and **auto-removed** after `cleanup.builder-auto-cleanup-seconds` (default **300 s**), so Builders don't permanently scar the terrain.
+The Veteran is **never** rolled from the random spawn pool.
 
 ### ★ Veteran
 *A zombie that has tasted blood.* Created when a zombie **kills a player** — it gets promoted on the spot.
@@ -156,6 +149,6 @@ visuals:
   nametag-always-visible: true   # false = only visible when looked at
 ```
 
-The nametag labels and colors are defined in `messages.yml` under the `zombies:` section, so they're fully translatable. See [Localization](Localization.md).
+Each class's nametag label and color are defined in the plugin. Other player-facing text (commands, Blood Moon, immunity) is fully translatable via `messages.yml` — see [Localization](Localization.md).
 
 <p align="center"><i>← Back to <a href="Home.md">Wiki Home</a></i></p>

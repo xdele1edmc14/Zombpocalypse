@@ -27,7 +27,7 @@ Running `/xa` with no arguments (or `/xa help`) opens a **permission-aware** hel
 
 Spawns zombies around **you** (must be run by a player). Tab-completion suggests every valid value.
 
-- **`<type>`** — a specific [zombie class](Zombie-Classes.md): `SWARMER`, `MINER`, `NURSE`, `PSYCHOPATH`, `SCORCHED`, `TANK`, `RUNNER`, `SPITTER`, `BUILDER`, `VETERAN`, `WEBBER`, `BURSTER`, `FROST`, or `NORMAL`.
+- **`<type>`** — a specific [zombie class](Zombie-Classes.md): `SWARMER`, `MINER`, `NURSE`, `PSYCHOPATH`, `SCORCHED`, `TANK`, `RUNNER`, `SPITTER`, `VETERAN`, `WEBBER`, `BURSTER`, `FROST`, or `NORMAL`.
 - **`horde`** — spawns a *mixed* horde, each zombie randomly rolled from the configured spawn weights.
 - **`mutant`** — spawns the [MythicMobs Mutant](MythicMobs-Integration.md) boss (only if MythicMobs is installed and the mob type is valid).
 - **`[count]`** — how many to spawn (default `1`). Clamped to `performance.max-total-zombies`.

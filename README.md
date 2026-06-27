@@ -11,7 +11,7 @@
 
 <p align="center">
   <i>A brutal, customizable zombie apocalypse plugin for survival servers 🌑🧟</i><br>
-  <b>13 zombie classes. Blood Moons. Scent tracking. Optimized for performance.</b>
+  <b>12 zombie classes. Blood Moons. Scent tracking. Optimized for performance.</b>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 ## ⚙️ Core Features
 
-* **🧟 13 Zombie Classes** — Every horde zombie is rolled from a weighted pool of specialized classes, each with its own AI, stats, and colored nametag. → *[Wiki: Zombie Classes](docs/Zombie-Classes.md)*
+* **🧟 12 Zombie Classes** — Every horde zombie is rolled from a weighted pool of specialized classes, each with its own AI, stats, and colored nametag. → *[Wiki: Zombie Classes](docs/Zombie-Classes.md)*
 
 * **🌑 Dynamic Horde Spawning** — Hordes spawn around players on a configurable timer, with surface-snapping (no suffocating in hills or void-dropping) and an optional ground-rise animation. → *[Wiki: Horde Spawning](docs/Horde-Spawning.md)*
 

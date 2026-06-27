@@ -96,7 +96,7 @@ zombie-classes:
 
   webber:
     web_count: 3
-    cleanup_delay: 40
+    cleanup_delay_seconds: 2   # Seconds before webber cobwebs are auto-removed
 
   burster:
     fuse_ticks: 30
@@ -110,6 +110,7 @@ scent-system:
   enabled: true
   sprint-add: 1.5              # Scent gained when sprinting
   kill-add: 0.8                # Scent gained per kill
+  jump-add: 0.5                # Scent gained per jump
   decay-amount: 1.2            # Scent lost every interval
   decay-interval-seconds: 4    # How often scent decays
   scent-scale: 15.0            # Higher = less impact on horde size
@@ -122,6 +123,7 @@ zombie-settings:
   speed: 0.32    # Movement speed
   allow-baby-zombies: false
   allow-zombie-villagers: true
+  allow-daylight-burning: true   # If false, custom (non-NORMAL) zombies are protected from burning in daylight
   zombie-guts:
     enabled: true  # Master switch: consume to ignore zombies 10 min (reduces max health to 5 hearts)
     # Rare chance for a slain zombie to drop Zombie Guts (requires the master switch above).
@@ -172,9 +174,6 @@ visuals:
   use-nametags: true          # Color-coded names above zombies
   nametag-always-visible: true  # If false, only visible when looking at zombie
 
-# Cleanup
-cleanup:
-  builder-auto-cleanup-seconds: 300  # Seconds before blocks placed by Builder zombies are auto-removed
 # ============================================================
 # MythicMobs Smart Spawn Integration
 # Add this block anywhere in your config.yml

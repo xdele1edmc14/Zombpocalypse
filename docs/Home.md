@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>The complete documentation for xApocalypse</b> — a hardcore zombie-horde survival plugin<br/>
-  with 13 zombie classes, Blood Moons, scent tracking, a Zombie-Guts immunity system,<br/>
+  with 12 zombie classes, Blood Moons, scent tracking, a Zombie-Guts immunity system,<br/>
   optional MythicMobs bosses, and a performance watchdog.
 </p>
 
@@ -25,7 +25,7 @@
 |------|---------------|
 | **[Getting Started](Getting-Started.md)** | Requirements, installation, first run, generated files |
 | **[Commands & Permissions](Commands-and-Permissions.md)** | Every sub-command, aliases, arguments, permission nodes |
-| **[Zombie Classes](Zombie-Classes.md)** | All 13 classes — stats, abilities, AI behavior, spawn weights |
+| **[Zombie Classes](Zombie-Classes.md)** | All 12 classes — stats, abilities, AI behavior, spawn weights |
 | **[Blood Moon](Blood-Moon.md)** | The Blood Moon event, multipliers, persistence, force/stop |
 | **[Scent System](Scent-System.md)** | How player activity attracts bigger hordes |
 | **[Zombie Guts & Immunity](Zombie-Guts-and-Immunity.md)** | The immunity item, the trade-off, the rare drop |
