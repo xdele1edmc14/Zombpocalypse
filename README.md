@@ -16,27 +16,37 @@
   <b>13 zombie classes. Blood Moons. Scent tracking. Optimized for performance.</b>
 </p>
 
+<p align="center">
+  <a href="docs/Home.md">
+    <img src="https://img.shields.io/badge/%F0%9F%93%96%20%20READ%20THE%20WIKI-8B0000?style=for-the-badge&labelColor=000000&color=8B0000" height="42" alt="Read the Wiki"/>
+  </a>
+</p>
+
+<p align="center">
+  <sub>📖 Full documentation — classes, Blood Moons, scent, config & more — lives in the <a href="docs/Home.md"><b>Wiki</b></a>.</sub>
+</p>
+
 ---
 
 ## ⚙️ Core Features
 
-* **🧟 13 Zombie Classes** — Every horde zombie is rolled from a weighted pool of specialized classes, each with its own AI, stats, and colored nametag (see [Zombie Classes](#-zombie-classes)).
+* **🧟 13 Zombie Classes** — Every horde zombie is rolled from a weighted pool of specialized classes, each with its own AI, stats, and colored nametag. → *[Wiki: Zombie Classes](docs/Zombie-Classes.md)*
 
-* **🌑 Dynamic Horde Spawning** — Hordes spawn around players on a configurable timer, with surface-snapping (no suffocating in hills or void-dropping) and an optional ground-rise animation.
+* **🌑 Dynamic Horde Spawning** — Hordes spawn around players on a configurable timer, with surface-snapping (no suffocating in hills or void-dropping) and an optional ground-rise animation. → *[Wiki: Horde Spawning](docs/Horde-Spawning.md)*
 
-* **🩸 Blood Moon Events** — Every *X* in-game days the night turns hostile: zombie health, damage, speed, and horde size are all multiplied, with a server-wide boss bar countdown. Can be triggered or stopped manually.
+* **🩸 Blood Moon Events** — Every *X* in-game days the night turns hostile: zombie health, damage, speed, and horde size are all multiplied, with a server-wide boss bar countdown. Can be triggered or stopped manually. → *[Wiki: Blood Moon](docs/Blood-Moon.md)*
 
-* **👃 Scent Tracking** — Player activity (sprinting, killing) builds a *scent* that attracts larger hordes. Scent decays over time, so staying quiet keeps you safer.
+* **👃 Scent Tracking** — Player activity (sprinting, killing) builds a *scent* that attracts larger hordes. Scent decays over time, so staying quiet keeps you safer. → *[Wiki: Scent System](docs/Scent-System.md)*
 
-* **🫀 Zombie Guts** — A rare drop that can be consumed for 10 minutes of zombie immunity, at the cost of reduced max health.
+* **🫀 Zombie Guts** — A rare drop that can be consumed for 10 minutes of zombie immunity, at the cost of reduced max health. → *[Wiki: Zombie Guts & Immunity](docs/Zombie-Guts-and-Immunity.md)*
 
-* **🐉 MythicMobs Integration** — Optionally spawns a capped, server-wide "Mutant" boss mob near players using your own MythicMobs definition.
+* **🐉 MythicMobs Integration** — Optionally spawns a capped, server-wide "Mutant" boss mob near players using your own MythicMobs definition. → *[Wiki: MythicMobs Integration](docs/MythicMobs-Integration.md)*
 
-* **🛡️ GriefPrevention Support** — Natural horde zombies will not spawn inside protected claims.
+* **🛡️ GriefPrevention Support** — Natural horde zombies will not spawn inside protected claims. → *[Wiki: Worlds & Integrations](docs/Worlds-and-Integrations.md)*
 
-* **🚦 Performance Guards** — Global entity caps, per-tick spawn rate limiting, and a TPS watchdog that throttles spawning when the server lags.
+* **🚦 Performance Guards** — Global entity caps, per-tick spawn rate limiting, and a TPS watchdog that throttles spawning when the server lags. → *[Wiki: Performance & LOD](docs/Performance-and-LOD.md)*
 
-* **🎨 Visuals & Localization** — Color-coded nametags and a fully translatable `messages.yml` supporting both **MiniMessage** (`<gradient>`, `<rainbow>`, `<#hex>`) and legacy (`&a`, `§c`) formatting.
+* **🎨 Visuals & Localization** — Color-coded nametags and a fully translatable `messages.yml` supporting both **MiniMessage** (`<gradient>`, `<rainbow>`, `<#hex>`) and legacy (`&a`, `§c`) formatting. → *[Wiki: Localization](docs/Localization.md)*
 
 ---
 
