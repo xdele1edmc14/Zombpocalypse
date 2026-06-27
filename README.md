@@ -1,5 +1,3 @@
-<h1 align="center">☠️ xApocalypse ☣️</h1>
-
 <p align="center">
   <img src="https://i.postimg.cc/MHGh5Snp/IMG-9018-removebg-preview.png" width="600" alt="xApocalypse Banner"/>
 </p>
