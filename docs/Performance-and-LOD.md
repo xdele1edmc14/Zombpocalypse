@@ -19,12 +19,15 @@ This keeps total entity pressure bounded no matter how many players, hordes, sce
 
 The watchdog reads server TPS (via Paper's API) each check interval:
 
+The watchdog reads server TPS (via Paper's API) each check interval and compares it against
+`performance.tps-threshold` (default **15.0**):
+
 | TPS | Behavior |
 |-----|----------|
-| **< 10.0** | **Critical** — all new horde spawning is **paused** |
-| **≥ 15.0** | Spawning **resumes** |
+| **< `tps-threshold`** | New horde spawning is **paused** |
+| **≥ `tps-threshold` + 1.5** | Spawning **resumes** (small gap avoids rapid flapping) |
 
-While paused, the horde spawner task simply skips its work, so a struggling server stops digging itself deeper and gets a chance to recover.
+While paused, the horde spawner task simply skips its work, so a struggling server stops digging itself deeper and gets a chance to recover. (Entity-count culling keeps running regardless.)
 
 > On non-Paper servers without `getTPS()`, the watchdog defaults to assuming a healthy 20 TPS and relies on the entity cap instead.
 
@@ -50,12 +53,11 @@ The LOD tracking map is bounded (capped at 1000 entries with automatic eviction 
 ```yaml
 performance:
   max-total-zombies: 300        # global zombie cap per world (culls furthest over this)
-  spawns-per-tick: 100          # spawn rate limiting
-  tps-threshold: 18.5           # general TPS threshold knob
+  tps-threshold: 15.0           # pause new zombie spawns when TPS drops below this; resume once it recovers
   check-interval-ticks: 100     # how often the watchdog runs (100 ticks = 5 s)
 ```
 
-> `max-total-zombies` is the single most important knob for a busy server — lower it if you see entity-related lag, raise it if your hardware can handle denser hordes.
+> `max-total-zombies` is the single most important knob for a busy server — lower it if you see entity-related lag, raise it if your hardware can handle denser hordes. `tps-threshold` pauses *new* spawns while the server is below it (entity culling still runs).
 
 ---
 

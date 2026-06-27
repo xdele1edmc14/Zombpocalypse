@@ -137,10 +137,9 @@ apocalypse-settings:
   base-horde-size: 6           # Base zombies per horde
   horde-variance: 4            # Random +0 to +4 zombies
   max-single-horde-size: 30    # Hard cap on one player's horde per spawn cycle (after blood moon/scent multipliers)
-  day-spawn-chance: 0.02 
+  day-spawn-chance: 0.02
   day-horde-size: 2
   day-horde-variance: 2      # 2% chance to spawn during day
-  ignore-light-level: false    # If true, spawns in daylight
   use-mob-blacklist: true      # If true, prevents listed mobs
   rising-animation: true        # Enable/disable zombie rise animation from ground
   mob-list:                    # Mobs to block (or allow if blacklist=false)
@@ -164,9 +163,8 @@ bloodmoon:
 
 # Performance & Safety Guards
 performance:
-  max-total-zombies: 300        # Maximum total zombies per world
-  spawns-per-tick: 100          # Zombies to spawn per tick (rate limiting) - increased to clear queue backlog
-  tps-threshold: 18.5           # Pause spawning if TPS drops below this
+  max-total-zombies: 300        # Maximum total zombies per world (furthest are culled above this)
+  tps-threshold: 15.0           # Pause NEW zombie spawns when server TPS drops below this; resume once it recovers
   check-interval-ticks: 100     # How often to check performance (5 seconds)
 
 # Visuals
@@ -176,7 +174,7 @@ visuals:
 
 # Cleanup
 cleanup:
-  miner-suppress-drops: false        # If true, blocks don't drop items
+  builder-auto-cleanup-seconds: 300  # Seconds before blocks placed by Builder zombies are auto-removed
 # ============================================================
 # MythicMobs Smart Spawn Integration
 # Add this block anywhere in your config.yml

@@ -76,14 +76,14 @@ public class xApocalypseListener implements Listener {
             immunity.maybeDropZombieGuts(event, zombie);
         }
 
-        // NOTE: parity-preserved quirk — when the scent system is disabled this early return
-        // ALSO skips the VETERAN promotion below (it sits after this guard in the original).
-        // The refactor preserves the original behaviour verbatim rather than silently changing it.
-        if (!plugin.getConfig().getBoolean("scent-system.enabled", true)) return;
-
-        Player killer = event.getEntity().getKiller();
-        if (killer != null) {
-            scent.onKill(killer);
+        // Bug M3 fix: scent-gain-on-kill stays gated by the scent toggle, but the VETERAN promotion
+        // below must NOT be — previously a single early-return here silently disabled veteran
+        // transformation whenever the scent system was turned off.
+        if (plugin.getConfig().getBoolean("scent-system.enabled", true)) {
+            Player killer = event.getEntity().getKiller();
+            if (killer != null) {
+                scent.onKill(killer);
+            }
         }
 
         // Fixed: VETERAN transformation - check if a zombie killed the entity
@@ -163,7 +163,7 @@ public class xApocalypseListener implements Listener {
         }
 
         if (entity instanceof Zombie zombie) {
-            if (!plugin.isAllowBabyZombies() && zombie.getAge() < 0) { event.setCancelled(true); return; }
+            if (!plugin.isAllowBabyZombies() && zombie.isBaby()) { event.setCancelled(true); return; }
             if (!plugin.isAllowZombieVillagers() && zombie.getType() == EntityType.ZOMBIE_VILLAGER) { event.setCancelled(true); return; }
 
             // Assign zombie type
@@ -222,12 +222,12 @@ public class xApocalypseListener implements Listener {
             if (type == null) return;
 
             switch (type) {
-                case WEBBER -> {
-                    utils.handleWebberHit(zombie, player);
-                }
-                case FROST -> {
-                    utils.handleFrostHit(zombie, player);
-                }
+                case WEBBER -> utils.handleWebberHit(zombie, player);
+                case FROST -> utils.handleFrostHit(zombie, player);
+                // Bug M2 fix: Scorched now actually burns its victim on hit.
+                case SCORCHED -> utils.handleScorchedHit(zombie, player);
+                // Bug M1 fix: Psychopath applies its configured "bleed" on hit.
+                case PSYCHOPATH -> utils.handlePsychopathHit(zombie, player);
                 default -> {
                     // No special handling for other types
                 }

@@ -59,10 +59,25 @@ public class xApocalypseUtils {
         for (ZombieType type : ZombieType.values()) {
             // VETERAN and BUILDER are not spawned randomly (VETERAN from kills, BUILDER special)
             if (type == ZombieType.VETERAN || type == ZombieType.BUILDER) continue;
+            // Bug M4 fix: honor per-class enabled flags so disabling a class removes it from the
+            // random spawn pool (previously these flags were never read).
+            if (!isClassEnabled(type)) continue;
             double weight = plugin.getConfig().getDouble("zombie-classes.weights." + type.name(), 0.1);
             spawnWeights.put(type, weight);
             totalWeight += weight;
         }
+    }
+
+    /** True unless the class carries an explicit {@code zombie-classes.<class>.enabled: false} flag. */
+    private boolean isClassEnabled(ZombieType type) {
+        String key = switch (type) {
+            case MINER -> "zombie-classes.miner.enabled";
+            case NURSE -> "zombie-classes.nurse.enabled";
+            case SPITTER -> "zombie-classes.spitter.enabled";
+            case SCORCHED -> "zombie-classes.scorched.enabled";
+            default -> null;
+        };
+        return key == null || plugin.getConfig().getBoolean(key, true);
     }
 
     public void reloadWeights() { loadWeights(); }
@@ -93,6 +108,12 @@ public class xApocalypseUtils {
     }
 
     private void applyZombieHead(Zombie zombie, ZombieType type) {
+        // Minor fix: honor visuals.use-nametags (previously ignored — zombies always got a nametag).
+        if (!plugin.getConfig().getBoolean("visuals.use-nametags", true)) {
+            zombie.setCustomName(null);
+            zombie.setCustomNameVisible(false);
+            return;
+        }
         zombie.setCustomName(getZombieDisplayName(type));
         zombie.setCustomNameVisible(plugin.getConfig().getBoolean("visuals.nametag-always-visible", true));
     }
@@ -212,12 +233,14 @@ public class xApocalypseUtils {
                 zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
             }
             case PSYCHOPATH -> {
-                // Berserker - higher damage, speed bonus when enraged
+                // Berserker - higher damage plus a small passive speed bonus
                 double attackBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.attack-bonus", 2.0);
+                // Bug M1 fix: honor zombie-classes.psychopath.speed-bonus (was never applied).
+                double speedBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.speed-bonus", 0.08);
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed + speedBonus);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case BUILDER -> {
@@ -310,15 +333,25 @@ public class xApocalypseUtils {
 
     private void tickNurseAI(Zombie nurse) {
         long now = System.currentTimeMillis();
+        // Bug M1 fix: honor the configured heal interval/radius/amount/target-cap (these keys were
+        // previously ignored — the values below were all hardcoded).
+        long intervalMs = plugin.getConfig().getInt("zombie-classes.nurse.interval-seconds", 3) * 1000L;
         Long lastHeal = nurse.getPersistentDataContainer().get(LAST_HEAL_KEY, PersistentDataType.LONG);
-        if (lastHeal != null && (now - lastHeal) < 3000) return;
+        if (lastHeal != null && (now - lastHeal) < intervalMs) return;
+
+        double radius = plugin.getConfig().getDouble("zombie-classes.nurse.heal-radius", 5.0);
+        double healAmount = plugin.getConfig().getDouble("zombie-classes.nurse.heal-amount-hp", 3.0);
+        int maxTargets = plugin.getConfig().getInt("zombie-classes.nurse.max-targets-per-tick", 5);
 
         boolean healed = false;
-        for (Entity e : nurse.getNearbyEntities(5, 5, 5)) {
+        int healedCount = 0;
+        for (Entity e : nurse.getNearbyEntities(radius, radius, radius)) {
+            if (healedCount >= maxTargets) break;
             if (e instanceof Zombie z && z.getHealth() < z.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()) {
-                z.setHealth(Math.min(z.getHealth() + 4.0, z.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
+                z.setHealth(Math.min(z.getHealth() + healAmount, z.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
                 z.getWorld().spawnParticle(Particle.HEART, z.getLocation().add(0, 1.5, 0), 5, 0.2, 0.2, 0.2, 0.1);
                 healed = true;
+                healedCount++;
             }
         }
         if (healed) {
@@ -371,7 +404,9 @@ public class xApocalypseUtils {
 
         long now = System.currentTimeMillis();
         Long lastSpit = spitter.getPersistentDataContainer().get(LAST_SPIT_KEY, PersistentDataType.LONG);
-        if (lastSpit != null && (now - lastSpit) < 4000) return;
+        // Bug M1 fix: honor zombie-classes.spitter.projectile-cooldown-seconds (was hardcoded 4 s).
+        long cooldownMs = plugin.getConfig().getInt("zombie-classes.spitter.projectile-cooldown-seconds", 6) * 1000L;
+        if (lastSpit != null && (now - lastSpit) < cooldownMs) return;
 
         spitter.getPersistentDataContainer().set(LAST_SPIT_KEY, PersistentDataType.LONG, now);
         Vector velocity = target.getLocation().add(0, 1, 0).toVector().subtract(spitter.getEyeLocation().toVector()).normalize().multiply(1.2);
@@ -400,7 +435,9 @@ public class xApocalypseUtils {
         if (psycho.getHealth() < psycho.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue() * 0.5) {
             long now = System.currentTimeMillis();
             Long lastRage = psycho.getPersistentDataContainer().get(LAST_RAGE_KEY, PersistentDataType.LONG);
-            if (lastRage == null || (now - lastRage) > 10000) {
+            // Bug M1 fix: honor zombie-classes.psychopath.rage-cooldown-seconds (was hardcoded 10 s).
+            long rageCooldownMs = plugin.getConfig().getInt("zombie-classes.psychopath.rage-cooldown-seconds", 25) * 1000L;
+            if (lastRage == null || (now - lastRage) > rageCooldownMs) {
                 psycho.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 100, 1));
                 psycho.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 100, 1));
                 psycho.getWorld().playSound(psycho.getLocation(), Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 1.5f);
@@ -532,6 +569,9 @@ public class xApocalypseUtils {
 
         int fuseTicks = plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30);
         float power = (float) plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0);
+        // Bug M1 fix: honor zombie-classes.burster.break_blocks (the explosion was hardcoded to never
+        // break terrain). Read here so it's effectively final for the fuse runnable below.
+        boolean breakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
         
         // CRITICAL FIX: Add burster fuse to tracking map
         BukkitRunnable fuse = new BukkitRunnable() {
@@ -551,7 +591,7 @@ public class xApocalypseUtils {
                     // Explode
                     Location loc = burster.getLocation();
                     burster.remove(); // Remove entity before explosion
-                    loc.getWorld().createExplosion(loc, power, false, false);
+                    loc.getWorld().createExplosion(loc, power, false, breakBlocks);
                     this.cancel();
                     activeBursterFuses.remove(id);
                 } else {
@@ -578,10 +618,35 @@ public class xApocalypseUtils {
     }
 
     // === FROST EVENT HANDLERS ===
-    
+
     public void handleFrostHit(Zombie frost, Player victim) {
         int durationTicks = plugin.getConfig().getInt("zombie-classes.frost.duration_ticks", 100);
         int level = plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2);
         victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, Math.max(0, level - 1)));
+    }
+
+    // === SCORCHED EVENT HANDLERS ===
+
+    /**
+     * Bug M2 fix: a Scorched zombie sets its melee victim on fire for the configured duration.
+     * Previously the class only emitted cosmetic flame particles and had no on-hit effect at all,
+     * so zombie-classes.scorched.fire-duration-seconds did nothing.
+     */
+    public void handleScorchedHit(Zombie scorched, Player victim) {
+        int seconds = plugin.getConfig().getInt("zombie-classes.scorched.fire-duration-seconds", 4);
+        if (seconds <= 0) return;
+        victim.setFireTicks(Math.max(victim.getFireTicks(), seconds * 20));
+    }
+
+    // === PSYCHOPATH EVENT HANDLERS ===
+
+    /**
+     * Bug M1 fix: a Psychopath's melee applies a short "bleed" (Wither) for the configured duration.
+     * Previously zombie-classes.psychopath.bleed-duration-seconds was never read.
+     */
+    public void handlePsychopathHit(Zombie psycho, Player victim) {
+        int seconds = plugin.getConfig().getInt("zombie-classes.psychopath.bleed-duration-seconds", 3);
+        if (seconds <= 0) return;
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, seconds * 20, 0));
     }
 }

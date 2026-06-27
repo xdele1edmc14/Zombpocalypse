@@ -300,6 +300,7 @@ public class xApocalypseCommand implements CommandExecutor {
             return true;
         }
 
+        int spawnedCount = 0;
         for (int i = 0; i < count; i++) {
             Location spawnLoc = player.getLocation().add(
                     ThreadLocalRandom.current().nextDouble(-radius, radius),
@@ -307,17 +308,23 @@ public class xApocalypseCommand implements CommandExecutor {
                     ThreadLocalRandom.current().nextDouble(-radius, radius)
             );
 
-            // Bug fix: don't gate the admin command on GriefPrevention claims (the natural
-            // spawner ignores them too — see HORDE branch above).
-            // Bug fix: bypass the onEntitySpawn mob-list gate for admin spawns (see HORDE
-            // branch above), then apply the requested type directly.
+            // Bug fix: snap to a valid surface (parity with the HORDE branch above) so specific-type
+            // spawns don't suffocate inside terrain or drop into the void at the player's raw Y.
+            Location surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
+            if (surface == null) continue;
+
+            // Bug fix: bypass the onEntitySpawn mob-list gate for admin spawns, then apply the
+            // requested type directly.
             plugin.setPluginSpawning(true);
-            Zombie zombie = (Zombie) player.getWorld().spawnEntity(spawnLoc, EntityType.ZOMBIE);
+            Zombie zombie = (Zombie) player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
             plugin.setPluginSpawning(false);
-            if (zombie != null) utils.applyZombieType(zombie, type);
+            if (zombie != null) {
+                utils.applyZombieType(zombie, type);
+                spawnedCount++;
+            }
         }
 
-        sender.sendMessage("§aSpawned " + count + " " + type.name() + " zombies!");
+        sender.sendMessage("§aSpawned " + spawnedCount + " " + type.name() + " zombies!");
         return true;
     }
 
