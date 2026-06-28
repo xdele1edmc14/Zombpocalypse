@@ -122,8 +122,10 @@ public class MessageManager {
                 raw.contains("hover") || raw.contains("click") || raw.contains("#"))) {
 
             try {
-                // Parse as MiniMessage and convert to legacy format
-                Component component = miniMessage.deserialize(raw);
+                // Normalize any embedded legacy codes (&l, &c, §a, …) to MiniMessage tags first.
+                // MiniMessage does NOT understand legacy codes — without this, a string that mixes
+                // <gradient>/<#hex> with &l renders the "&l" as literal visible text.
+                Component component = miniMessage.deserialize(legacyToMiniMessage(raw));
                 return legacySerializer.serialize(component);
             } catch (Exception e) {
                 // If parsing fails, fall back to legacy
@@ -134,6 +136,63 @@ public class MessageManager {
             // Parse as legacy color codes
             return ChatColor.translateAlternateColorCodes('&', raw);
         }
+    }
+
+    /**
+     * Converts legacy color/format codes ({@code &} or {@code §} followed by 0-9a-fk-or) into their
+     * MiniMessage tag equivalents so a string may freely mix legacy codes with MiniMessage syntax
+     * (gradients, hex, etc.). MiniMessage itself ignores legacy codes — without this pass an embedded
+     * {@code &l} would render as the literal text "&l" inside a gradient/hex message.
+     */
+    private String legacyToMiniMessage(String input) {
+        if (input == null || input.isEmpty()) return input;
+        StringBuilder out = new StringBuilder(input.length() + 16);
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if ((c == '&' || c == '§') && i + 1 < input.length()) {
+                char code = Character.toLowerCase(input.charAt(i + 1));
+                String tag = legacyTag(code);
+                if (tag != null) {
+                    out.append(tag);
+                    i++; // consume the code char
+                    continue;
+                }
+            }
+            out.append(c);
+        }
+        return out.toString();
+    }
+
+    private String legacyTag(char code) {
+        return switch (code) {
+            case '0' -> "<black>";
+            case '1' -> "<dark_blue>";
+            case '2' -> "<dark_green>";
+            case '3' -> "<dark_aqua>";
+            case '4' -> "<dark_red>";
+            case '5' -> "<dark_purple>";
+            case '6' -> "<gold>";
+            case '7' -> "<gray>";
+            case '8' -> "<dark_gray>";
+            case '9' -> "<blue>";
+            case 'a' -> "<green>";
+            case 'b' -> "<aqua>";
+            case 'c' -> "<red>";
+            case 'd' -> "<light_purple>";
+            case 'e' -> "<yellow>";
+            case 'f' -> "<white>";
+            case 'k' -> "<obfuscated>";
+            case 'l' -> "<bold>";
+            case 'm' -> "<strikethrough>";
+            case 'n' -> "<underlined>";
+            case 'o' -> "<italic>";
+            // Legacy reset has no safe nested equivalent: MiniMessage's <reset> pops the current tag
+            // scope, so a "&r" inside an enclosing tag (e.g. <gradient>…&r…</gradient>) would orphan
+            // the closing tag and leak it as literal text. Strip it instead — pure-legacy strings
+            // (which never reach this MiniMessage path) still handle &r natively via translateAlternateColorCodes.
+            case 'r' -> "";
+            default -> null;
+        };
     }
 
     /**
@@ -172,7 +231,7 @@ public class MessageManager {
         // Parse as MiniMessage if it uses MiniMessage syntax
         if (rawMessage.contains("<") && (rawMessage.contains("gradient") || rawMessage.contains("rainbow") ||
                 rawMessage.contains("hover") || rawMessage.contains("click") || rawMessage.contains("#"))) {
-            return miniMessage.deserialize(rawMessage);
+            return miniMessage.deserialize(legacyToMiniMessage(rawMessage));
         } else {
             // Convert legacy to Component
             String legacy = ChatColor.translateAlternateColorCodes('&', rawMessage);

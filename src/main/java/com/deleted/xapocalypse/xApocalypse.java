@@ -38,6 +38,7 @@ public class xApocalypse extends JavaPlugin {
     private ImmunityManager immunity;
     private ScentManager scent;
     private HordeManager horde;
+    private DropManager dropManager;
 
     // --- GENERAL CONFIG ---
     private List<String> enabledWorlds;
@@ -89,6 +90,7 @@ public class xApocalypse extends JavaPlugin {
         undeadSpawner = new UndeadSpawner(this, utils);
         horde = new HordeManager(this, utils, undeadSpawner);
         scent = new ScentManager(this);
+        dropManager = new DropManager(this);
 
         // --- MythicMobs Integration ---
         mythicMobsManager = new MythicMobsManager(this);
@@ -211,6 +213,9 @@ public class xApocalypse extends JavaPlugin {
         loadConfigValues();
         messageManager.reload();
         utils.reloadWeights();
+        if (dropManager != null) {
+            dropManager.loadConfig();
+        }
         if (mythicMobsManager != null) {
             mythicMobsManager.loadConfig();
         }
@@ -363,6 +368,10 @@ public class xApocalypse extends JavaPlugin {
 
     public MythicMobsManager getMythicMobsManager() {
         return mythicMobsManager;
+    }
+
+    public DropManager getDropManager() {
+        return dropManager;
     }
 
     // ==================================================================================

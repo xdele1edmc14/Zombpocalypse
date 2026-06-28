@@ -34,6 +34,9 @@ public class xApocalypseUtils {
     public static final NamespacedKey ANIMATING_KEY = new NamespacedKey("xapocalypse", "animating");
     // Marker placed on the Zombie Guts ItemStack so it is identified by PDC rather than display name.
     public static final NamespacedKey ZOMBIE_GUTS_KEY = new NamespacedKey("xapocalypse", "zombie_guts_item");
+    // Marks a zombie that was spawned/typed during an active blood moon, so it can be despawned
+    // when the blood moon ends (see despawnBloodMoonZombies). Zombies present before the event are untagged.
+    public static final NamespacedKey BLOOD_MOON_KEY = new NamespacedKey("xapocalypse", "blood_moon");
 
     public enum ZombieType {
         SWARMER, MINER, NURSE, PSYCHOPATH, SCORCHED, TANK, RUNNER, SPITTER, VETERAN, WEBBER, BURSTER, FROST, NORMAL;
@@ -101,6 +104,15 @@ public class xApocalypseUtils {
 
     public void applyZombieType(Zombie zombie, ZombieType type) {
         zombie.getPersistentDataContainer().set(ZOMBIE_TYPE_KEY, PersistentDataType.STRING, type.name());
+        // Tag zombies typed during an active blood moon so they can be cleaned up when it ends.
+        // Guard on type != VETERAN: veteran promotion (transformToVeteran) re-runs this method on an
+        // already-living zombie. Without the guard, a zombie that existed BEFORE the blood moon and
+        // promotes to Veteran mid-event would be freshly tagged and then wrongly despawned at event
+        // end — violating the "leave pre-existing zombies alone" contract. The tag is only stamped
+        // at initial typing (every spawn path passes a non-VETERAN type first).
+        if (type != ZombieType.VETERAN && plugin.isBloodMoonActive(zombie.getWorld())) {
+            zombie.getPersistentDataContainer().set(BLOOD_MOON_KEY, PersistentDataType.BYTE, (byte) 1);
+        }
         applyZombieHead(zombie, type);
         applyZombieStats(zombie, type);
     }
@@ -436,8 +448,38 @@ public class xApocalypseUtils {
     }
 
     public void transformToVeteran(Zombie zombie) {
-        if (!plugin.getConfig().getBoolean("zombie-classes.veteran.persist", true)) return;
+        // Single source of truth for the toggle: the same key the listener gates on
+        // (zombie-classes.veteran.permanent). Previously this re-checked a separate "persist" key,
+        // so disabling one but not the other produced confusing half-on behavior.
+        if (!plugin.getConfig().getBoolean("zombie-classes.veteran.permanent", true)) return;
         applyZombieType(zombie, ZombieType.VETERAN);
+    }
+
+    /**
+     * Removes every blood-moon-tagged zombie (see {@link #BLOOD_MOON_KEY}) across all enabled worlds
+     * with a small smoke puff + sound — called when a blood moon ends so the horde it summoned does
+     * not linger. Zombies that existed before the blood moon are left untouched. Returns the count
+     * removed. The entities are removed outright (no death drops), avoiding an end-of-event loot dump.
+     */
+    public int despawnBloodMoonZombies() {
+        int removed = 0;
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            if (!plugin.isWorldEnabled(world)) continue;
+            for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                if (!zombie.getPersistentDataContainer().has(BLOOD_MOON_KEY, PersistentDataType.BYTE)) continue;
+                // Cancel any pending burster fuse so its delayed explosion can't fire post-removal.
+                cancelBursterFuse(zombie);
+                Location loc = zombie.getLocation().add(0, 1, 0);
+                world.spawnParticle(Particle.SMOKE, loc, 12, 0.25, 0.4, 0.25, 0.02);
+                world.playSound(zombie.getLocation(), Sound.ENTITY_ZOMBIE_DEATH, 0.6f, 0.7f);
+                zombie.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            plugin.debugLog("Blood moon ended — despawned " + removed + " blood-moon zombie(s).");
+        }
+        return removed;
     }
 
     public boolean isInsideClaim(Location loc) {

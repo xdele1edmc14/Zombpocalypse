@@ -74,6 +74,10 @@ public class xApocalypseListener implements Listener {
             // Rare configurable Zombie Guts drop. Inside the Zombie block (and thus BEFORE the
             // scent-system early-return below) so it works even when the scent system is disabled.
             immunity.maybeDropZombieGuts(event, zombie);
+
+            // Configurable custom drops (separate tables for normal kills vs blood-moon kills).
+            // Independent of and stacking with the Zombie Guts drop above.
+            plugin.getDropManager().applyDrops(event, zombie);
         }
 
         // Bug M3 fix: scent-gain-on-kill stays gated by the scent toggle, but the VETERAN promotion
@@ -98,8 +102,17 @@ public class xApocalypseListener implements Listener {
             // If a zombie killed this entity, transform it to veteran
             if (damager instanceof Zombie killerZombie) {
                 if (plugin.getConfig().getBoolean("zombie-classes.veteran.permanent", true)) {
-                    utils.transformToVeteran(killerZombie);
-                    plugin.debugLog("Zombie " + killerZombie.getUniqueId() + " transformed to VETERAN after kill");
+                    // Bug fix: defer the promotion one tick. The player's death message is rendered
+                    // from the killer's display name during THIS death tick — promoting (renaming to
+                    // "★ Veteran") synchronously here leaked the Veteran name into every death message,
+                    // regardless of the zombie's actual class. Running it next tick lets the death
+                    // message keep the original name while the zombie still becomes a Veteran.
+                    org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        if (killerZombie.isValid() && !killerZombie.isDead()) {
+                            utils.transformToVeteran(killerZombie);
+                            plugin.debugLog("Zombie " + killerZombie.getUniqueId() + " transformed to VETERAN after kill");
+                        }
+                    }, 1L);
                 }
             }
         }

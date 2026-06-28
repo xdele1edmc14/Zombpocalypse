@@ -112,6 +112,27 @@ public class MythicMobsManager {
     }
 
     /**
+     * Removes every still-living tracked Mutant and clears the tracking set — called when a blood
+     * moon ends so its bosses don't linger past the event. Entities whose chunk is unloaded simply
+     * resolve to null here; their UUIDs are dropped from the set regardless so no cap slot leaks.
+     */
+    public int despawnActiveMutants() {
+        int removed = 0;
+        for (UUID uuid : this.activeMutants) {
+            Entity entity = Bukkit.getEntity(uuid);
+            if (entity != null && !entity.isDead()) {
+                entity.remove();
+                removed++;
+            }
+        }
+        this.activeMutants.clear();
+        if (removed > 0) {
+            this.plugin.debugLog("[MythicMobs] Blood moon ended — despawned " + removed + " Mutant(s).");
+        }
+        return removed;
+    }
+
+    /**
      * Restarts ONLY the periodic spawn tick loop (no guaranteed Mutant) — used after the scheduler's
      * cancelTasks() wipes it, e.g. across a /xa reload during an active blood moon. Without this the
      * periodic Mutant spawns would stay dead until the next blood moon.

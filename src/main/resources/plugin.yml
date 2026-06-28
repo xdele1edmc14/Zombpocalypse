@@ -1,6 +1,6 @@
 name: xApocalypse
 main: com.deleted.xapocalypse.xApocalypse
-version: "1.0.2"
+version: "1.2.0"
 api-version: 1.21
 authors: [xDele1ed]
 description: A hardcore zombie horde plugin with advanced AI, Blood Moons, and GriefPrevention support.

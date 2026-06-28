@@ -277,10 +277,7 @@ public class BloodMoonManager {
                         save();
                         bloodMoonBar.removeAll();
                         plugin.debugLog("Forced blood moon expired by real-time duration — cleaning up.");
-                        MythicMobsManager mm = plugin.getMythicMobsManager();
-                        if (mm != null) {
-                            mm.onBloodMoonEnd();
-                        }
+                        signalBloodMoonEnd();
                         return;
                     }
                 }
@@ -385,10 +382,7 @@ public class BloodMoonManager {
                             forcedBloodMoonDuration = -1;
                             save();
                             plugin.debugLog("Blood moon ended (in-game time) - persistence reset.");
-                            MythicMobsManager mm = plugin.getMythicMobsManager();
-                            if (mm != null) {
-                                mm.onBloodMoonEnd();
-                            }
+                            signalBloodMoonEnd();
                         }
                     }
                 } else {
@@ -412,10 +406,7 @@ public class BloodMoonManager {
                             // Fix RC3: Signal MM manager here too.  Previously onBloodMoonEnd()
                             // was missing from this path, so the spawn tick loop was never told
                             // to stop when a blood moon was wiped by a /time set day command.
-                            MythicMobsManager mm = plugin.getMythicMobsManager();
-                            if (mm != null) {
-                                mm.onBloodMoonEnd();
-                            }
+                            signalBloodMoonEnd();
                         }
                     }
 
@@ -449,6 +440,27 @@ public class BloodMoonManager {
     public void removeBossBar() {
         if (bloodMoonBar != null) {
             bloodMoonBar.removeAll();
+        }
+    }
+
+    /**
+     * Single end-of-blood-moon hook used by every termination path (real-time forced expiry,
+     * in-game-time end, day-time reset, and the /xa stopbloodmoon command). Stops the MythicMobs
+     * spawn loop and — unless {@code bloodmoon.despawn-on-end} is disabled — removes the zombies and
+     * Mutants the event spawned so they don't linger once it's over.
+     */
+    private void signalBloodMoonEnd() {
+        MythicMobsManager mm = plugin.getMythicMobsManager();
+        if (mm != null) {
+            mm.onBloodMoonEnd();
+        }
+        if (plugin.getConfig().getBoolean("bloodmoon.despawn-on-end", true)) {
+            if (plugin.getUtils() != null) {
+                plugin.getUtils().despawnBloodMoonZombies();
+            }
+            if (mm != null) {
+                mm.despawnActiveMutants();
+            }
         }
     }
 
@@ -491,11 +503,8 @@ public class BloodMoonManager {
             forcedBloodMoonDuration = -1; // CRITICAL FIX: Reset forced duration
             save();
 
-            // --- MythicMobs: stop tick loop ---
-            MythicMobsManager mm = plugin.getMythicMobsManager();
-            if (mm != null) {
-                mm.onBloodMoonEnd();
-            }
+            // --- MythicMobs: stop tick loop + despawn blood-moon entities ---
+            signalBloodMoonEnd();
 
             // CRITICAL FIX: Force bossbar cleanup
             if (bloodMoonBar != null && !bloodMoonBar.getPlayers().isEmpty()) {
