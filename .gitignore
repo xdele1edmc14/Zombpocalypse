@@ -38,3 +38,21 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### JVM crash / profiling dumps ###
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+*.log
+
+### Python (version_sync.py tooling) ###
+__pycache__/
+*.py[cod]
+
+### Claude Code (local sessions, worktrees, local settings) ###
+.claude/
+
+### Scratch notes & old backups (history retains prior versions) ###
+d.txt
+BUGS.txt
+Old Files/
