@@ -9,8 +9,16 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import org.bukkit.configuration.file.YamlConfiguration;
+
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -60,11 +68,10 @@ public class xApocalypse extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        File configFile = new File(getDataFolder(), "config.yml");
-        if (!configFile.exists()) {
-            saveResource("config.yml", false);
-        }
-        saveDefaultConfig();
+        // Regenerate config.yml if the admin deleted it, and merge any new keys introduced by a
+        // plugin update into their existing file (preserving their current values + comments).
+        // This is what lets an update "just work" without a manual config delete.
+        synchronizeConfig();
 
         // CRITICAL FIX: Initialize blood moon data BEFORE loading config values.
         // BloodMoonManager.load() creates BloodMoonData.yml and reads persisted state; it must
@@ -209,6 +216,10 @@ public class xApocalypse extends JavaPlugin {
         if (undeadSpawner != null) {
             undeadSpawner.finalizeAllAnimations();
         }
+        // Regenerate config.yml if it was deleted, and pull in any new keys from the jar BEFORE we
+        // reload it into memory — so "delete config + /xa reload" rebuilds a complete file, and an
+        // admin who hand-deletes individual keys gets them restored on reload too.
+        synchronizeConfig();
         reloadConfig();
         loadConfigValues();
         messageManager.reload();
@@ -242,6 +253,88 @@ public class xApocalypse extends JavaPlugin {
     // ==================================================================================
     // CONFIG + HOOKS
     // ==================================================================================
+
+    /**
+     * Keeps the on-disk {@code config.yml} in lock-step with the version bundled in the jar, so
+     * updating the plugin never requires the admin to delete their config:
+     *
+     * <ul>
+     *   <li><b>Deleted file</b> — if {@code config.yml} is gone (admin wiped it, or it's a fresh
+     *       install), it's recreated verbatim from the jar (comments and all). A bare
+     *       {@code /xa reload} therefore fully regenerates a missing config.</li>
+     *   <li><b>Update with new keys</b> — every key present in the jar's default config but absent
+     *       from the admin's file is copied in, together with its block/inline comments. Existing
+     *       keys keep the admin's current values <i>and</i> their own comments untouched.</li>
+     * </ul>
+     *
+     * Only writes the file back to disk when something actually changed, to avoid needless churn.
+     */
+    private void synchronizeConfig() {
+        File configFile = new File(getDataFolder(), "config.yml");
+
+        // Fresh install or admin deleted the file: drop in the bundled copy verbatim (keeps comments).
+        if (!configFile.exists()) {
+            saveResource("config.yml", false);
+            return;
+        }
+
+        // Load the bundled defaults straight from the jar.
+        YamlConfiguration defaults;
+        try (InputStream defStream = getResource("config.yml")) {
+            if (defStream == null) {
+                getLogger().warning("No bundled config.yml found in the jar; skipping config sync.");
+                return;
+            }
+            defaults = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(defStream, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            getLogger().warning("Could not read bundled config.yml for sync: " + e.getMessage());
+            return;
+        }
+
+        YamlConfiguration current = YamlConfiguration.loadConfiguration(configFile);
+
+        // Walk every key the jar ships and add the ones the admin's file is missing, carrying over
+        // each new key's comments. getKeys(true) yields deep dotted paths; setting a deep leaf path
+        // auto-creates its parent sections.
+        boolean changed = false;
+        Set<String> addedRoots = new HashSet<>();
+        for (String path : defaults.getKeys(true)) {
+            if (current.contains(path)) {
+                continue;
+            }
+            // Skip pure parent sections — they materialize automatically when their child leaves are
+            // set, and copying the section object would clobber any sibling keys.
+            if (defaults.isConfigurationSection(path)) {
+                continue;
+            }
+            current.set(path, defaults.get(path));
+            current.setComments(path, defaults.getComments(path));
+            current.setInlineComments(path, defaults.getInlineComments(path));
+            changed = true;
+            addedRoots.add(path.contains(".") ? path.substring(0, path.indexOf('.')) : path);
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        // Restore block comments on any parent sections we implicitly created, so freshly added
+        // nested keys aren't left as orphaned blocks with no section header comment.
+        for (String path : defaults.getKeys(true)) {
+            if (defaults.isConfigurationSection(path) && current.isConfigurationSection(path)
+                    && (current.getComments(path) == null || current.getComments(path).isEmpty())) {
+                current.setComments(path, defaults.getComments(path));
+            }
+        }
+
+        try {
+            current.save(configFile);
+            getLogger().info("config.yml updated with new default keys: " + String.join(", ", addedRoots));
+        } catch (IOException e) {
+            getLogger().warning("Failed to write merged config.yml: " + e.getMessage());
+        }
+    }
 
     private void loadConfigValues() {
         enabledWorlds = getConfig().getStringList("enabled-worlds");
