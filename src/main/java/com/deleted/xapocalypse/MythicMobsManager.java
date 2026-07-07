@@ -358,6 +358,12 @@ public class MythicMobsManager {
         this.activeMutants.remove(uuid);
     }
 
+    /** True if the given entity is a currently-tracked Mutant. Used by the death listener to grant
+     * Mutant rewards — call BEFORE {@link #notifyEntityDeath}, which removes the UUID. */
+    public boolean isTrackedMutant(UUID uuid) {
+        return this.activeMutants.contains(uuid);
+    }
+
     private void broadcastBloodMoonSpawn(Player nearPlayer) {
         for(Player p : Bukkit.getOnlinePlayers()) {
             if (this.plugin.isWorldEnabled(p.getWorld()) || this.plugin.isLobbyWorld(p.getWorld())) {

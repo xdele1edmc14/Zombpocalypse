@@ -1,6 +1,9 @@
 package com.deleted.xapocalypse;
 
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
@@ -10,13 +13,15 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Owns the configurable custom death-drop system: extra items a slain zombie can drop on top of the
- * vanilla rotten flesh and the Zombie Guts rare drop (which lives in {@link ImmunityManager}).
+ * Owns the configurable custom death-reward systems: extra items a slain zombie can drop on top of
+ * the vanilla rotten flesh and the Zombie Guts rare drop ({@link ImmunityManager}), console commands
+ * run on a kill, an optional broadcast, and a parallel reward set for MythicMobs Mutants.
  *
- * Two independent drop tables are read from {@code zombie-settings.custom-drops}: {@code normal}
- * (a regular kill) and {@code bloodmoon} (a kill while a blood moon is active). The active table is
- * chosen per-death by {@link xApocalypse#isBloodMoonActive}. Config is parsed once on load/reload
- * (cheap per-death iteration), matching the manager pattern used elsewhere in the plugin.
+ * Zombie drops/commands read {@code normal} vs {@code bloodmoon} tables from
+ * {@code zombie-settings.custom-drops} / {@code zombie-settings.kill-commands}, chosen per-death by
+ * {@link xApocalypse#isBloodMoonActive}. Mutant rewards read {@code mythicmobs.integration.rewards}.
+ * Config is parsed once on load/reload (cheap per-death iteration), matching the manager pattern
+ * used elsewhere in the plugin.
  */
 public class DropManager {
 
@@ -27,8 +32,28 @@ public class DropManager {
     private final List<DropEntry> normalDrops = new ArrayList<>();
     private final List<DropEntry> bloodMoonDrops = new ArrayList<>();
 
+    private boolean commandsEnabled;
+    private boolean commandsRequirePlayerKill;
+    private final List<CommandEntry> normalCommands = new ArrayList<>();
+    private final List<CommandEntry> bloodMoonCommands = new ArrayList<>();
+
+    private boolean zombieBroadcastEnabled;
+    private double zombieBroadcastChance;
+    private String zombieBroadcastMessage;
+
+    private boolean mutantEnabled;
+    private boolean mutantRequirePlayerKill;
+    private final List<DropEntry> mutantDrops = new ArrayList<>();
+    private final List<CommandEntry> mutantCommands = new ArrayList<>();
+    private boolean mutantBroadcastEnabled;
+    private double mutantBroadcastChance;
+    private String mutantBroadcastMessage;
+
     /** One configured drop: an item, an inclusive amount range, and a per-death roll chance (0–1). */
     private record DropEntry(Material material, int min, int max, double chance) {}
+
+    /** One configured kill-command: the raw command string and a per-death roll chance (0–1). */
+    private record CommandEntry(String command, double chance) {}
 
     public DropManager(xApocalypse plugin) {
         this.plugin = plugin;
@@ -45,8 +70,34 @@ public class DropManager {
         parseTable("zombie-settings.custom-drops.normal", normalDrops);
         parseTable("zombie-settings.custom-drops.bloodmoon", bloodMoonDrops);
 
+        commandsEnabled = plugin.getConfig().getBoolean("zombie-settings.kill-commands.enabled", false);
+        commandsRequirePlayerKill = plugin.getConfig().getBoolean("zombie-settings.kill-commands.require-player-kill", true);
+
+        normalCommands.clear();
+        bloodMoonCommands.clear();
+        parseCommandTable("zombie-settings.kill-commands.normal", normalCommands);
+        parseCommandTable("zombie-settings.kill-commands.bloodmoon", bloodMoonCommands);
+
+        zombieBroadcastEnabled = plugin.getConfig().getBoolean("zombie-settings.kill-commands.broadcast.enabled", false);
+        zombieBroadcastChance = clampChance(plugin.getConfig().getDouble("zombie-settings.kill-commands.broadcast.chance", 0.0), "zombie-settings.kill-commands.broadcast");
+        zombieBroadcastMessage = plugin.getConfig().getString("zombie-settings.kill-commands.broadcast.message", "");
+
+        mutantEnabled = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.enabled", false);
+        mutantRequirePlayerKill = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.require-player-kill", true);
+        mutantDrops.clear();
+        mutantCommands.clear();
+        parseTable("mythicmobs.integration.rewards.drops", mutantDrops);
+        parseCommandTable("mythicmobs.integration.rewards.commands", mutantCommands);
+        mutantBroadcastEnabled = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.broadcast.enabled", false);
+        mutantBroadcastChance = clampChance(plugin.getConfig().getDouble("mythicmobs.integration.rewards.broadcast.chance", 0.0), "mythicmobs.integration.rewards.broadcast");
+        mutantBroadcastMessage = plugin.getConfig().getString("mythicmobs.integration.rewards.broadcast.message", "");
+
         plugin.debugLog("Custom drops loaded: " + normalDrops.size() + " normal, "
                 + bloodMoonDrops.size() + " blood-moon entries (enabled=" + enabled + ").");
+        plugin.debugLog("Kill commands loaded: " + normalCommands.size() + " normal, "
+                + bloodMoonCommands.size() + " blood-moon entries (enabled=" + commandsEnabled + ").");
+        plugin.debugLog("Mutant rewards loaded: " + mutantDrops.size() + " drops, "
+                + mutantCommands.size() + " commands (enabled=" + mutantEnabled + ").");
     }
 
     private void parseTable(String path, List<DropEntry> into) {
@@ -75,6 +126,33 @@ public class DropManager {
             }
 
             into.add(new DropEntry(material, range[0], range[1], chance));
+        }
+    }
+
+    private void parseCommandTable(String path, List<CommandEntry> into) {
+        List<?> raw = plugin.getConfig().getList(path);
+        if (raw == null) return;
+
+        for (Object obj : raw) {
+            if (!(obj instanceof java.util.Map<?, ?> map)) continue;
+
+            Object cmdObj = map.get("command");
+            if (cmdObj == null) continue;
+            String command = String.valueOf(cmdObj).trim();
+            if (command.isEmpty()) continue;
+            // Tolerate a leading slash; console dispatch expects the command without it.
+            if (command.startsWith("/")) command = command.substring(1);
+
+            double chance = parseChance(map.get("chance"));
+            if (chance <= 0.0) continue;
+            if (chance > 1.0) {
+                plugin.getLogger().warning("[KillCommands] chance " + chance + " in " + path
+                        + " is above the documented 0.0-1.0 range; treating as guaranteed (1.0)."
+                        + " For a percent, use a fraction (e.g. 50% -> 0.5).");
+                chance = 1.0;
+            }
+
+            into.add(new CommandEntry(command, chance));
         }
     }
 
@@ -111,6 +189,67 @@ public class DropManager {
         }
     }
 
+    /** Clamps a broadcast chance to 0-1, warning once (per load) if it was out of range. */
+    private double clampChance(double chance, String path) {
+        if (chance > 1.0) {
+            plugin.getLogger().warning("[KillCommands] chance " + chance + " in " + path
+                    + " is above the documented 0.0-1.0 range; treating as guaranteed (1.0).");
+            return 1.0;
+        }
+        return Math.max(0.0, chance);
+    }
+
+    /** Rolls a drop table and appends winners to the death drops. */
+    private void rollDrops(List<DropEntry> table, EntityDeathEvent event) {
+        if (table.isEmpty()) return;
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        for (DropEntry entry : table) {
+            if (rng.nextDouble() >= entry.chance()) continue;
+            int amount = entry.min() == entry.max()
+                    ? entry.min()
+                    : rng.nextInt(entry.min(), entry.max() + 1);
+            event.getDrops().add(new ItemStack(entry.material(), amount));
+        }
+    }
+
+    /**
+     * Rolls a command table and dispatches winners from the console. {@code %player%} is replaced
+     * with {@code playerName}; entries referencing {@code %player%} are skipped when it is null.
+     */
+    private void rollCommands(List<CommandEntry> table, String playerName) {
+        if (table.isEmpty()) return;
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        for (CommandEntry entry : table) {
+            if (rng.nextDouble() >= entry.chance()) continue;
+
+            String command = entry.command();
+            if (command.contains("%player%")) {
+                if (playerName == null) continue;
+                command = command.replace("%player%", playerName);
+            }
+
+            try {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            } catch (Exception e) {
+                plugin.getLogger().warning("[KillCommands] Failed to run '" + command + "': " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Rolls a configurable broadcast and sends it to the whole server. Skipped when the message uses
+     * {@code %player%} but there is no player killer, or the message is blank.
+     */
+    private void rollBroadcast(boolean enabled, double chance, String message, String playerName) {
+        if (!enabled || message == null || message.isEmpty()) return;
+        if (message.contains("%player%") && playerName == null) return;
+        if (ThreadLocalRandom.current().nextDouble() >= chance) return;
+
+        String text = ChatColor.translateAlternateColorCodes('&',
+                playerName != null ? message.replace("%player%", playerName) : message);
+        Bukkit.broadcastMessage(text);
+    }
+
     /**
      * Rolls the configured custom drops for a slain zombie and appends any winners to the death drops
      * (so they flow through vanilla / other-plugin drop handling). The blood-moon table is used when a
@@ -121,16 +260,38 @@ public class DropManager {
         if (requirePlayerKill && zombie.getKiller() == null) return;
 
         boolean bloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
-        List<DropEntry> table = bloodMoon ? bloodMoonDrops : normalDrops;
-        if (table.isEmpty()) return;
+        rollDrops(bloodMoon ? bloodMoonDrops : normalDrops, event);
+    }
 
-        ThreadLocalRandom rng = ThreadLocalRandom.current();
-        for (DropEntry entry : table) {
-            if (rng.nextDouble() >= entry.chance()) continue;
-            int amount = entry.min() == entry.max()
-                    ? entry.min()
-                    : rng.nextInt(entry.min(), entry.max() + 1);
-            event.getDrops().add(new ItemStack(entry.material(), amount));
-        }
+    /**
+     * Rolls the configured kill-commands and optional broadcast for a slain zombie. The blood-moon
+     * table is used when a blood moon is active in the zombie's world, otherwise the normal table.
+     * {@code %player%} is replaced with the killer's name.
+     */
+    public void runKillCommands(Zombie zombie) {
+        if (!commandsEnabled) return;
+
+        Player killer = zombie.getKiller();
+        if (commandsRequirePlayerKill && killer == null) return;
+
+        String playerName = killer != null ? killer.getName() : null;
+        boolean bloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
+        rollCommands(bloodMoon ? bloodMoonCommands : normalCommands, playerName);
+        rollBroadcast(zombieBroadcastEnabled, zombieBroadcastChance, zombieBroadcastMessage, playerName);
+    }
+
+    /**
+     * Rolls the configured Mutant rewards (drops, console commands, broadcast) for a slain Mutant.
+     * Item drops are appended to {@code event} and {@code %player%} is replaced with the killer's name.
+     * Called from the death listener when a tracked Mutant dies.
+     */
+    public void applyMutantRewards(EntityDeathEvent event, Player killer) {
+        if (!mutantEnabled) return;
+        if (mutantRequirePlayerKill && killer == null) return;
+
+        String playerName = killer != null ? killer.getName() : null;
+        rollDrops(mutantDrops, event);
+        rollCommands(mutantCommands, playerName);
+        rollBroadcast(mutantBroadcastEnabled, mutantBroadcastChance, mutantBroadcastMessage, playerName);
     }
 }

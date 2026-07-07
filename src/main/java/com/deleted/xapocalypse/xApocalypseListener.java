@@ -51,10 +51,16 @@ public class xApocalypseListener implements Listener {
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
+        // Grant Mutant rewards BEFORE notifyEntityDeath clears the tracking slot below.
+        UUID deadId = event.getEntity().getUniqueId();
+        if (plugin.getMythicMobsManager().isTrackedMutant(deadId)) {
+            plugin.getDropManager().applyMutantRewards(event, event.getEntity().getKiller());
+        }
+
         // Free a MythicMobs Mutant cap slot the moment any entity dies (cheap no-op for non-mutants).
         // Closes the cap-leak where a killed Mutant whose chunk unloaded before pruning kept its slot
         // forever, eventually filling max-global-cap with ghosts and silently stopping all spawns.
-        plugin.getMythicMobsManager().notifyEntityDeath(event.getEntity().getUniqueId());
+        plugin.getMythicMobsManager().notifyEntityDeath(deadId);
 
         if (event.getEntity() instanceof Zombie zombie) {
             xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
@@ -78,6 +84,10 @@ public class xApocalypseListener implements Listener {
             // Configurable custom drops (separate tables for normal kills vs blood-moon kills).
             // Independent of and stacking with the Zombie Guts drop above.
             plugin.getDropManager().applyDrops(event, zombie);
+
+            // Configurable console commands run on kill (separate normal/blood-moon tables,
+            // per-entry chance, %player% placeholder). Independent of the drops above.
+            plugin.getDropManager().runKillCommands(zombie);
         }
 
         // Bug M3 fix: scent-gain-on-kill stays gated by the scent toggle, but the VETERAN promotion

@@ -1,4 +1,4 @@
-# xApocalypse v1.2.1 - Balanced Configuration
+# xApocalypse v1.3.0 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -159,6 +159,28 @@ zombie-settings:
         amount: 1
         chance: 0.01
 
+  # Console commands run when a zombie is killed. Like custom-drops, two separate tables:
+  # 'normal' for ordinary kills and 'bloodmoon' for kills during a blood moon. Each entry:
+  # command (run from console; %player% is replaced with the killer's name) and chance
+  # (0.0-1.0 rolled per zombie death). Entries containing %player% are skipped when there
+  # is no player killer.
+  kill-commands:
+    enabled: false
+    require-player-kill: true     # Anti-farm: only roll commands when a player lands the killing blow
+    # Optional server-wide broadcast on a zombie kill. Set your own message and how often it fires.
+    # %player% is replaced with the killer's name (broadcast is skipped when there is no player killer
+    # and the message uses %player%). Supports & color codes.
+    broadcast:
+      enabled: false
+      chance: 0.02                # 0.0-1.0 chance per zombie death to send the broadcast
+      message: "&c%player% &7took down a zombie!"
+    normal:                       # Commands on a normal (non-blood-moon) kill
+      - command: "eco give %player% 5"
+        chance: 0.10
+    bloodmoon:                    # Commands during a blood moon
+      - command: "eco give %player% 25"
+        chance: 0.10
+
 # Spawning
 apocalypse-settings:
   spawn-rate: 1500              # Ticks between spawns (20 ticks = 1 second)
@@ -234,3 +256,27 @@ mythicmobs:
     spawn-radius:
       min: 20   # Minimum blocks from player
       max: 40   # Maximum blocks from player
+
+    # Rewards granted when a tracked Mutant is killed — works exactly like the zombie
+    # custom-drops / kill-commands above, but only fires for Mutants. %player% is replaced
+    # with the killer's name; item drops and %player% commands/broadcasts require a player kill.
+    rewards:
+      enabled: false
+      require-player-kill: true
+      # Extra items added to the Mutant's death drops.
+      drops:
+        - material: DIAMOND
+          amount: 1-3
+          chance: 1.0
+        - material: NETHERITE_SCRAP
+          amount: 1
+          chance: 0.25
+      # Console commands run on a Mutant kill.
+      commands:
+        - command: "eco give %player% 100"
+          chance: 1.0
+      # Optional server-wide broadcast on a Mutant kill.
+      broadcast:
+        enabled: true
+        chance: 1.0
+        message: "&4&l☠ &c%player% &7has slain a &4Mutant&7!"
