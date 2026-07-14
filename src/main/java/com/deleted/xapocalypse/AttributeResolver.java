@@ -4,22 +4,38 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 
-import java.util.Objects;
-
 /** Registry-backed attribute references that avoid deprecated enum constants on newer 1.21 builds. */
 final class AttributeResolver {
 
-    static final Attribute MAX_HEALTH = require("generic.max_health");
-    static final Attribute ATTACK_DAMAGE = require("generic.attack_damage");
-    static final Attribute MOVEMENT_SPEED = require("generic.movement_speed");
-    static final Attribute KNOCKBACK_RESISTANCE = require("generic.knockback_resistance");
+    static final Attribute MAX_HEALTH = require(
+            "max_health", "generic.max_health", "GENERIC_MAX_HEALTH");
+    static final Attribute ATTACK_DAMAGE = require(
+            "attack_damage", "generic.attack_damage", "GENERIC_ATTACK_DAMAGE");
+    static final Attribute MOVEMENT_SPEED = require(
+            "movement_speed", "generic.movement_speed", "GENERIC_MOVEMENT_SPEED");
+    static final Attribute KNOCKBACK_RESISTANCE = require(
+            "knockback_resistance", "generic.knockback_resistance", "GENERIC_KNOCKBACK_RESISTANCE");
 
     private AttributeResolver() {
     }
 
-    private static Attribute require(String key) {
-        return Objects.requireNonNull(
-                Registry.ATTRIBUTE.get(NamespacedKey.minecraft(key)),
-                "Missing Minecraft attribute: " + key);
+    private static Attribute require(String modernKey, String legacyKey, String legacyField) {
+        Attribute attribute = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(modernKey));
+        if (attribute != null) return attribute;
+
+        attribute = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(legacyKey));
+        if (attribute != null) return attribute;
+
+        // Paper retained the old enum fields across much of 1.21. Resolve them reflectively as a
+        // final binary-compatibility fallback without directly linking deprecated API constants.
+        try {
+            Object value = Attribute.class.getField(legacyField).get(null);
+            if (value instanceof Attribute legacyAttribute) return legacyAttribute;
+        } catch (ReflectiveOperationException ignored) {
+            // The detailed error below lists every name that was attempted.
+        }
+
+        throw new IllegalStateException("Missing Minecraft attribute; tried minecraft:"
+                + modernKey + ", minecraft:" + legacyKey + " and Attribute." + legacyField);
     }
 }

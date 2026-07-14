@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
@@ -42,6 +43,11 @@ public class MythicMobsManager {
     private int spawnRadiusMin;
     private int spawnRadiusMax;
     private int spawnTickInterval;
+    private boolean spawnSoundEnabled;
+    private Sound spawnSound;
+    private float spawnSoundVolume;
+    private float spawnSoundPitch;
+    private double spawnSoundRadius;
     // Fix RC4: Track consecutive "blood moon inactive" ticks before stopping the loop.
     // A single false return from isBloodMoonActive() can occur during a cross-world
     // teleport, a BetterRTP staging teleport, or a brief state-write race between the
@@ -72,6 +78,15 @@ public class MythicMobsManager {
                 cfg.getInt("mythicmobs.integration.spawn-radius.max", 40));
         this.spawnTickInterval = Math.max(1,
                 cfg.getInt("mythicmobs.integration.spawn-tick-interval", 100));
+        this.spawnSoundEnabled = cfg.getBoolean("mythicmobs.integration.spawn-sound.enabled", true);
+        this.spawnSoundVolume = Math.max(0.0f,
+                (float) cfg.getDouble("mythicmobs.integration.spawn-sound.volume", 1.0));
+        this.spawnSoundPitch = Math.max(0.0f,
+                (float) cfg.getDouble("mythicmobs.integration.spawn-sound.pitch", 0.8));
+        this.spawnSoundRadius = Math.max(0.0,
+                cfg.getDouble("mythicmobs.integration.spawn-sound.radius", 48.0));
+        this.spawnSound = this.spawnSoundEnabled ? parseSound(cfg.getString(
+                "mythicmobs.integration.spawn-sound.name", "ENTITY_ENDER_DRAGON_GROWL")) : null;
 
         hookMythicMobs();
     }
@@ -286,6 +301,7 @@ public class MythicMobsManager {
                     }
                     this.activeMutants.add(entity.getUniqueId());
                     this.plugin.debugLog("[MythicMobs] Spawned at " + this.formatLoc(loc));
+                    this.playSpawnSound(entity.getLocation());
                 }
 
                 return entity;
@@ -313,6 +329,28 @@ public class MythicMobsManager {
         }
 
         return null;
+    }
+
+    private Sound parseSound(String soundName) {
+        if (soundName == null || soundName.isBlank()) return null;
+        try {
+            return Sound.valueOf(soundName.trim().toUpperCase().replace('.', '_'));
+        } catch (IllegalArgumentException e) {
+            this.log.warning("Invalid mythicmobs.integration.spawn-sound.name: '" + soundName
+                    + "' - the Mutant spawn sound will be skipped");
+            return null;
+        }
+    }
+
+    private void playSpawnSound(Location location) {
+        if (!this.spawnSoundEnabled || this.spawnSound == null || location.getWorld() == null) return;
+        double radiusSquared = this.spawnSoundRadius * this.spawnSoundRadius;
+        for (Player player : location.getWorld().getPlayers()) {
+            if (player.getLocation().distanceSquared(location) <= radiusSquared) {
+                player.playSound(player.getLocation(), this.spawnSound,
+                        this.spawnSoundVolume, this.spawnSoundPitch);
+            }
+        }
     }
 
     private Location snapToGround(Location loc) {

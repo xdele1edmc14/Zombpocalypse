@@ -69,6 +69,6 @@ Blood Moon state is saved to **`BloodMoonData.yml`** in the plugin folder. This 
 
 ## Notifications
 
-When a natural Blood Moon rises, players in enabled/lobby worlds receive a broadcast. The messages are configurable in `messages.yml` under `bloodmoon:` (`start`, `end`, `natural-start`, `natural-end`, `force-start`, etc.). See [Localization](Localization.md).
+When a natural Blood Moon rises, players in enabled/lobby worlds receive a broadcast. Natural and forced starts also play the configurable vanilla sound under `bloodmoon.start-sound`. The messages are configurable in `messages.yml` under `bloodmoon:` (`start`, `end`, `natural-start`, `natural-end`, `force-start`, etc.). See [Localization](Localization.md).
 
 <p align="center"><i>← Back to <a href="Home.md">Wiki Home</a></i></p>

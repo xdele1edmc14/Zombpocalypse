@@ -75,6 +75,14 @@ mythicmobs:
     # Ticks between chance rolls (20 ticks = 1 second). 100 = every 5 s per player.
     spawn-tick-interval: 100
 
+    # Played to players in this radius after every successful Mutant spawn.
+    spawn-sound:
+      enabled: true
+      name: ENTITY_ENDER_DRAGON_GROWL
+      volume: 1.0
+      pitch: 0.8
+      radius: 48.0
+
     # Distance from a player where the mob tries to spawn.
     spawn-radius:
       min: 20

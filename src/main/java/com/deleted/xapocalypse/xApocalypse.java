@@ -99,6 +99,16 @@ public class xApocalypse extends JavaPlugin {
         scent = new ScentManager(this);
         dropManager = new DropManager(this);
 
+        // PlaceholderAPI is optional. Its classes are only touched after Bukkit confirms that the
+        // plugin is present, so xApocalypse continues to load normally on servers without it.
+        if (getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            if (new xApocalypsePlaceholderExpansion(this).register()) {
+                getLogger().info("Hooked into PlaceholderAPI successfully.");
+            } else {
+                getLogger().warning("PlaceholderAPI expansion registration failed.");
+            }
+        }
+
         // --- MythicMobs Integration ---
         mythicMobsManager = new MythicMobsManager(this);
 

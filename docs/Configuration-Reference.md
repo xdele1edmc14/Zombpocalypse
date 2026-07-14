@@ -216,6 +216,11 @@ bloodmoon:
     speed: 1.1
     horde-size: 1.5
   force-duration-minutes: 10   # default duration for /xa forcebloodmoon
+  start-sound:
+    enabled: true
+    name: ENTITY_WITHER_SPAWN   # any Bukkit Sound name
+    volume: 1.0
+    pitch: 0.7
 ```
 
 See **[Blood Moon](Blood-Moon.md)**.
@@ -257,6 +262,12 @@ mythicmobs:
     spawn-radius:
       min: 20
       max: 40
+    spawn-sound:
+      enabled: true
+      name: ENTITY_ENDER_DRAGON_GROWL
+      volume: 1.0
+      pitch: 0.8
+      radius: 48.0             # heard only in the Mutant's world within this distance
 ```
 
 See **[MythicMobs Integration](MythicMobs-Integration.md)**.

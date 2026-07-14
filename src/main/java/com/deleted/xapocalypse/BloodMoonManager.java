@@ -56,6 +56,12 @@ public class BloodMoonManager {
     private float warningSoundVolume;
     private float warningSoundPitch;
 
+    // --- START SOUND CONFIG (bloodmoon.start-sound.*) ---
+    private boolean startSoundEnabled;
+    private Sound startSound;
+    private float startSoundVolume;
+    private float startSoundPitch;
+
     // --- RUNTIME STATE ---
     private boolean forcedBloodMoon = false;
     private long forcedBloodMoonStartTime = -1; // CRITICAL FIX: Track forced blood moon start time
@@ -146,6 +152,15 @@ public class BloodMoonManager {
                         + "' - the warning sound will be skipped (chat/title still work)");
             }
         }
+
+        startSoundEnabled = cfg.getBoolean("bloodmoon.start-sound.enabled", true);
+        startSoundVolume = Math.max(0.0f,
+                (float) cfg.getDouble("bloodmoon.start-sound.volume", 1.0));
+        startSoundPitch = Math.max(0.0f,
+                (float) cfg.getDouble("bloodmoon.start-sound.pitch", 0.7));
+        startSound = startSoundEnabled ? parseSound(cfg.getString(
+                "bloodmoon.start-sound.name", "ENTITY_WITHER_SPAWN"),
+                "bloodmoon.start-sound.name") : null;
 
         // CRITICAL FIX: Load blood moon persistence data from separate file (dual-read preserved
         // from the original loadConfigValues, which re-asserted these flags after reloadConfig()).
@@ -309,6 +324,19 @@ public class BloodMoonManager {
         return bloodMoonForceDuration;
     }
 
+    /** Returns whole in-game days until the next natural Blood Moon; 0 means today/active. */
+    public int getDaysUntilNextBloodMoon() {
+        if (!bloodMoonEnabled) return 0;
+        World world = getReferenceWorld();
+        if (world == null) return 0;
+        if (isActive(world)) return 0;
+
+        long dayNumber = world.getFullTime() / 24000L;
+        long remainder = Math.floorMod(dayNumber, (long) bloodMoonInterval);
+        if (dayNumber > 0 && remainder == 0) return 0;
+        return (int) (bloodMoonInterval - remainder);
+    }
+
     public boolean isPersisted() {
         return bloodMoonPersisted;
     }
@@ -426,6 +454,7 @@ public class BloodMoonManager {
                                 p.sendMessage(plugin.getMessages().get("bloodmoon.natural-start"));
                             }
                         }
+                        playStartSound();
                     }
 
                     long time = mainWorld.getTime();
@@ -649,6 +678,27 @@ public class BloodMoonManager {
         }
     }
 
+    private Sound parseSound(String soundName, String configPath) {
+        if (soundName == null || soundName.isBlank()) return null;
+        try {
+            // Accept both Bukkit enum names and namespaced-style dotted names.
+            return Sound.valueOf(soundName.trim().toUpperCase().replace('.', '_'));
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("Invalid " + configPath + ": '" + soundName
+                    + "' - this sound will be skipped");
+            return null;
+        }
+    }
+
+    private void playStartSound() {
+        if (!startSoundEnabled || startSound == null) return;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (plugin.isWorldEnabled(player.getWorld()) || plugin.isLobbyWorld(player.getWorld())) {
+                player.playSound(player.getLocation(), startSound, startSoundVolume, startSoundPitch);
+            }
+        }
+    }
+
     /**
      * Join replay: if today's dawn warning already broadcast (dayNumber == lastWarnedDay), replay
      * it to the joining player ~2s after join (past the join-message spam). Players joining before
@@ -692,6 +742,8 @@ public class BloodMoonManager {
 
         // CRITICAL FIX: Save forced blood moon state
         save();
+
+        playStartSound();
 
         // --- MythicMobs: guaranteed Mutant + tick loop ---
         MythicMobsManager mm = plugin.getMythicMobsManager();

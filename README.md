@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Java-21-orange?style=for-the-badge&logo=openjdk"/>
   <img src="https://img.shields.io/badge/Spigot/Paper-1.21-red?style=for-the-badge&logo=spigotmc"/>
   <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Version-1.4.3-brightgreen?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/Version-1.5.0-brightgreen?style=for-the-badge"/>
 </p>
 
 <p align="center">
@@ -39,6 +39,8 @@
 * **🫀 Zombie Guts** — A rare drop that can be consumed for 10 minutes of zombie immunity, at the cost of reduced max health. → *[Wiki: Zombie Guts & Immunity](docs/Zombie-Guts-and-Immunity.md)*
 
 * **🐉 MythicMobs Integration** — Optionally spawns a capped, server-wide "Mutant" boss mob near players using your own MythicMobs definition. → *[Wiki: MythicMobs Integration](docs/MythicMobs-Integration.md)*
+
+* **🔌 PlaceholderAPI Support** — Exposes live Blood Moon, Zombie Guts, and scent values for scoreboards, tab lists, chat, and other PlaceholderAPI-aware plugins. → *[Wiki: PlaceholderAPI](docs/PlaceholderAPI.md)*
 
 * **🛡️ GriefPrevention Support** — Natural horde zombies will not spawn inside protected claims. → *[Wiki: Worlds & Integrations](docs/Worlds-and-Integrations.md)*
 
@@ -170,6 +172,11 @@ bloodmoon:
     speed: 1.1
     horde-size: 1.5
   force-duration-minutes: 10
+  start-sound:
+    enabled: true
+    name: ENTITY_WITHER_SPAWN
+    volume: 1.0
+    pitch: 0.7
 
 # Performance guards
 performance:
@@ -185,6 +192,12 @@ mythicmobs:
     spawn-chance: 0.05
     spawn-tick-interval: 100
     spawn-radius: { min: 20, max: 40 }
+    spawn-sound:
+      enabled: true
+      name: ENTITY_ENDER_DRAGON_GROWL
+      volume: 1.0
+      pitch: 0.8
+      radius: 48.0
 ```
 
 ---
@@ -193,9 +206,9 @@ mythicmobs:
 
 * **Server:** Spigot / Paper, API version **1.21**
 * **Java:** **21+**
-* **Soft dependencies (optional):** [GriefPrevention](https://www.spigotmc.org/resources/griefprevention.1884/), [MythicMobs](https://www.spigotmc.org/resources/mythicmobs.5702/)
+* **Soft dependencies (optional):** [GriefPrevention](https://www.spigotmc.org/resources/griefprevention.1884/), [MythicMobs](https://www.spigotmc.org/resources/mythicmobs.5702/), [PlaceholderAPI](https://www.spigotmc.org/resources/placeholderapi.6245/)
 
-1. Drop `xApocalypse-1.4.3.jar` into your server's `plugins/` folder.
+1. Drop `xApocalypse-1.5.0.jar` into your server's `plugins/` folder.
 2. Start the server once to generate `config.yml` and `messages.yml`.
 3. Edit the configs to taste and run `/xa reload`.
 

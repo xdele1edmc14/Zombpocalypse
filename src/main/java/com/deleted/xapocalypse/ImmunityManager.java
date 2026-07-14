@@ -329,6 +329,15 @@ public class ImmunityManager {
         return immunePlayers.contains(uuid);
     }
 
+    /** Remaining Zombie Guts duration in whole seconds, rounded up while the effect is active. */
+    public long getRemainingSeconds(UUID uuid) {
+        if (!immunePlayers.contains(uuid)) return 0L;
+        Long endTime = immunityEndTime.get(uuid);
+        if (endTime == null) return 0L;
+        long remainingMillis = endTime - System.currentTimeMillis();
+        return remainingMillis <= 0L ? 0L : (remainingMillis + 999L) / 1000L;
+    }
+
     public void onPlayerJoin(Player player) {
         UUID uuid = player.getUniqueId();
 

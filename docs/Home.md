@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.4.3-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/Version-1.5.0-brightgreen?style=flat-square"/>
   <img src="https://img.shields.io/badge/API-1.21-red?style=flat-square"/>
   <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square"/>
   <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=flat-square"/>
@@ -30,6 +30,7 @@
 | **[Scent System](Scent-System.md)** | How player activity attracts bigger hordes |
 | **[Zombie Guts & Immunity](Zombie-Guts-and-Immunity.md)** | The immunity item, the trade-off, the rare drop |
 | **[MythicMobs Integration](MythicMobs-Integration.md)** | The Mutant boss, spawn caps, Blood Moon tie-in |
+| **[PlaceholderAPI](PlaceholderAPI.md)** | Live placeholders for Blood Moons, Zombie Guts, and scent |
 | **[Horde Spawning](Horde-Spawning.md)** | How, when, and where hordes spawn; the rise animation |
 | **[Performance & LOD](Performance-and-LOD.md)** | Entity caps, TPS watchdog, AI throttling |
 | **[Worlds & GriefPrevention](Worlds-and-Integrations.md)** | Enabled vs lobby worlds, claim protection |

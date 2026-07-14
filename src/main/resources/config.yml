@@ -1,4 +1,4 @@
-# xApocalypse v1.4.3 - Balanced Configuration
+# xApocalypse v1.5.0 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -211,6 +211,12 @@ bloodmoon:
     horde-size: 1.5
   # CRITICAL FIX: Add force blood moon configuration
   force-duration-minutes: 10  # Duration for /xa forcebloodmoon command
+  # Sound played to online players in enabled and lobby worlds when a Blood Moon begins.
+  start-sound:
+    enabled: true
+    name: ENTITY_WITHER_SPAWN
+    volume: 1.0
+    pitch: 0.7
   # Remove zombies (and MythicMobs Mutants) spawned during the blood moon when the event ends.
   # Zombies that already existed before the blood moon are left alone. They vanish with a small
   # smoke puff and drop nothing (prevents an end-of-event loot dump).
@@ -266,6 +272,14 @@ mythicmobs:
     # How many ticks between each chance roll (20 ticks = 1 second).
     # Default 100 = rolls every 5 seconds per player.
     spawn-tick-interval: 100
+
+    # Sound played only to players close enough to each successful Mutant spawn.
+    spawn-sound:
+      enabled: true
+      name: ENTITY_ENDER_DRAGON_GROWL
+      volume: 1.0
+      pitch: 0.8
+      radius: 48.0
 
     # Distance from a player where the mob tries to spawn.
     # The system prefers locations outside line-of-sight within this range.

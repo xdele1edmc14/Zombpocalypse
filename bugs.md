@@ -6,7 +6,7 @@
 
 ## 0. Resolution status
 
-All Critical, Moderate, and Minor findings are **fixed as of 1.4.3** (build verified with Maven).
+All Critical, Moderate, and Minor findings are **fixed as of 1.5.0** (build verified with Maven).
 The findings below are kept as the original report for reference.
 
 **Fixed:** C1, C2, M1, M2, M3, M4, and Minor: `use-nametags` wired, `tps-threshold` wired (shipped
@@ -15,7 +15,7 @@ default lowered to `15.0`), dead keys removed from `config.yml` (`spawns-per-tic
 `isBaby()`, `getCurrentTPS()` catches `Throwable`, `/xa spawn <type>` now surface-snaps, and the
 `UndeadSpawner` trackers are cleared on reload/disable.
 
-**1.4.3 Minor closure:** the LOD and custom-AI zombie scans now share one pass; class behavior config
+**1.5.0 Minor closure:** the LOD and custom-AI zombie scans now share one pass; class behavior config
 is cached and refreshed on reload; obsolete player-spawn overloads and their UUID tracker were
 removed; scent state is released on quit; attributes use registry-backed references; dual-hand Guts
 activation is deduplicated; and MiniMessage detection now requires a syntactically valid tag. The
