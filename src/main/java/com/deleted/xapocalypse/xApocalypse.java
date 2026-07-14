@@ -102,18 +102,6 @@ public class xApocalypse extends JavaPlugin {
         // --- MythicMobs Integration ---
         mythicMobsManager = new MythicMobsManager(this);
 
-        // BUGFIX: if a blood moon was already active (persisted or forced) when the
-        // plugin (re)enabled, the bossbar/visual side resumes fine on its own via
-        // isBloodMoonActive(), but mythicMobsManager.onBloodMoonStart() was never
-        // called again — it's only invoked from the "natural blood moon start" branch,
-        // which is gated on !bloodMoonPersisted and so can't fire a second time. That
-        // silently orphaned the guaranteed-mutant spawn loop on every restart/reload
-        // that happened mid-blood-moon.
-        if (bloodMoon.wasPersistedOrForcedAtEnable()) {
-            mythicMobsManager.onBloodMoonStart();
-            debugLog("Resumed MythicMobs blood moon tick loop after (re)enable - persisted=" + bloodMoon.isPersisted() + ", forced=" + bloodMoon.isForced());
-        }
-
         // --- Performance Watchdog Setup ---
         // Bug C2 fix: only construct it here. start() is called AFTER startSpawnerTask()
         // below, because startSpawnerTask() calls cancelTasks(this) which would otherwise
@@ -132,6 +120,18 @@ public class xApocalypse extends JavaPlugin {
 
         startSpawnerTask();
         immunity.startCheckTask();
+
+        // startSpawnerTask() begins by cancelling every plugin task, so Blood Moon integrations
+        // must resume afterwards. Resume only the loop: a restart is not a new event and must not
+        // spawn another guaranteed Mutant.
+        cleanupExpiredBloodMoonEntitiesInLoadedChunks();
+        World activeBloodMoonWorld = bloodMoon.getReferenceWorld();
+        if (bloodMoon.wasPersistedOrForcedAtEnable()
+                && activeBloodMoonWorld != null
+                && isBloodMoonActive(activeBloodMoonWorld)) {
+            mythicMobsManager.resumeSpawnLoop();
+            debugLog("Resumed MythicMobs Blood Moon loop after enable.");
+        }
 
         // Bug C2 fix: start the watchdog AFTER startSpawnerTask() so its tasks survive
         // the cancelTasks(this) call inside startSpawnerTask().
@@ -243,9 +243,20 @@ public class xApocalypse extends JavaPlugin {
         // so periodic Mutant spawns continue — otherwise they stay dead until the next blood moon.
         // Mirrors the onEnable resume path.
         if (mythicMobsManager != null) {
-            World bmWorld = Bukkit.getWorlds().stream().filter(this::isWorldEnabled).findFirst().orElse(null);
+            World bmWorld = bloodMoon.getReferenceWorld();
             if (bmWorld != null && isBloodMoonActive(bmWorld)) {
                 mythicMobsManager.resumeSpawnLoop();
+            }
+        }
+        cleanupExpiredBloodMoonEntitiesInLoadedChunks();
+    }
+
+    private void cleanupExpiredBloodMoonEntitiesInLoadedChunks() {
+        if (!getConfig().getBoolean("bloodmoon.despawn-on-end", true)) return;
+        for (World world : Bukkit.getWorlds()) {
+            for (org.bukkit.Chunk chunk : world.getLoadedChunks()) {
+                utils.cleanupExpiredBloodMoonZombies(chunk);
+                mythicMobsManager.cleanupExpiredBloodMoonMutants(chunk);
             }
         }
     }

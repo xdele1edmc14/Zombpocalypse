@@ -1,6 +1,8 @@
 package com.deleted.xapocalypse;
 
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -13,6 +15,9 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Owns the entire Blood Moon subsystem: configuration multipliers, the BloodMoonData.yml
@@ -39,6 +44,18 @@ public class BloodMoonManager {
     private double bmSpeedMult;
     private double bmHordeMult;
 
+    // --- WARNING CONFIG (bloodmoon.warning.*) ---
+    private boolean warningEnabled;
+    private int warningDaysBefore;                 // clamped to [1, interval-1]
+    private boolean warningTitleEnabled;
+    private int warningTitleFadeIn;
+    private int warningTitleStay;
+    private int warningTitleFadeOut;
+    private boolean warningSoundEnabled;
+    private Sound warningSound;                    // null if the configured name is invalid
+    private float warningSoundVolume;
+    private float warningSoundPitch;
+
     // --- RUNTIME STATE ---
     private boolean forcedBloodMoon = false;
     private long forcedBloodMoonStartTime = -1; // CRITICAL FIX: Track forced blood moon start time
@@ -48,6 +65,12 @@ public class BloodMoonManager {
     // CRITICAL FIX: blood moon persistence fields
     private boolean bloodMoonPersisted = false;
     private long persistedBloodMoonDay = -1;
+    private UUID bloodMoonWorldId = null;
+    private int missingReferenceWorldChecks = 0;
+
+    // Pre-blood-moon warning dedupe: the day number the warning last broadcast on.
+    // Persisted in BloodMoonData.yml so a same-day restart doesn't re-broadcast.
+    private long lastWarnedDay = -1;
 
     // CRITICAL FIX: Separate blood moon data file
     private File bloodMoonDataFile;
@@ -79,13 +102,50 @@ public class BloodMoonManager {
 
     public void loadConfigValues(FileConfiguration cfg) {
         bloodMoonEnabled = cfg.getBoolean("bloodmoon.enabled");
-        bloodMoonInterval = cfg.getInt("bloodmoon.interval-days", 10);
+        bloodMoonInterval = Math.max(1, cfg.getInt("bloodmoon.interval-days", 10));
         bloodMoonTitle = cfg.getString("bloodmoon.bossbar-title", "Blood Moon");
-        bloodMoonForceDuration = cfg.getInt("bloodmoon.force-duration-minutes", 10); // CRITICAL FIX: Load force duration
+        if (bloodMoonTitle == null) bloodMoonTitle = "Blood Moon";
+        bloodMoonForceDuration = Math.max(1, cfg.getInt("bloodmoon.force-duration-minutes", 10));
         bmHealthMult = cfg.getDouble("bloodmoon.multipliers.health", 2.0);
         bmDamageMult = cfg.getDouble("bloodmoon.multipliers.damage", 1.5);
         bmSpeedMult = cfg.getDouble("bloodmoon.multipliers.speed", 1.2);
         bmHordeMult = cfg.getDouble("bloodmoon.multipliers.horde-size", 1.5);
+
+        // --- Pre-blood-moon warning settings ---
+        warningEnabled = cfg.getBoolean("bloodmoon.warning.enabled", true);
+        warningDaysBefore = cfg.getInt("bloodmoon.warning.days-before", 3);
+        if (bloodMoonInterval == 1) {
+            // There is no distinct "day before" when every day is a Blood Moon day.
+            warningDaysBefore = 0;
+        } else if (warningDaysBefore < 1) {
+            plugin.getLogger().warning("bloodmoon.warning.days-before must be at least 1 (was "
+                    + warningDaysBefore + ") - clamping to 1");
+            warningDaysBefore = 1;
+        }
+        if (bloodMoonInterval > 1 && warningDaysBefore >= bloodMoonInterval) {
+            plugin.getLogger().warning("bloodmoon.warning.days-before (" + warningDaysBefore
+                    + ") must be less than bloodmoon.interval-days (" + bloodMoonInterval
+                    + ") - clamping to " + (bloodMoonInterval - 1));
+            warningDaysBefore = Math.max(1, bloodMoonInterval - 1);
+        }
+        warningTitleEnabled = cfg.getBoolean("bloodmoon.warning.title.enabled", true);
+        warningTitleFadeIn = cfg.getInt("bloodmoon.warning.title.fade-in-ticks", 10);
+        warningTitleStay = cfg.getInt("bloodmoon.warning.title.stay-ticks", 70);
+        warningTitleFadeOut = cfg.getInt("bloodmoon.warning.title.fade-out-ticks", 20);
+        warningSoundEnabled = cfg.getBoolean("bloodmoon.warning.sound.enabled", true);
+        warningSoundVolume = (float) cfg.getDouble("bloodmoon.warning.sound.volume", 1.0);
+        warningSoundPitch = (float) cfg.getDouble("bloodmoon.warning.sound.pitch", 0.6);
+        String soundName = cfg.getString("bloodmoon.warning.sound.name", "ENTITY_WITHER_AMBIENT");
+        warningSound = null;
+        if (warningSoundEnabled && soundName != null && !soundName.isEmpty()) {
+            try {
+                // Accept both "ENTITY_WITHER_AMBIENT" and "entity.wither.ambient" forms.
+                warningSound = Sound.valueOf(soundName.toUpperCase().replace('.', '_'));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Invalid bloodmoon.warning.sound.name: '" + soundName
+                        + "' - the warning sound will be skipped (chat/title still work)");
+            }
+        }
 
         // CRITICAL FIX: Load blood moon persistence data from separate file (dual-read preserved
         // from the original loadConfigValues, which re-asserted these flags after reloadConfig()).
@@ -110,6 +170,18 @@ public class BloodMoonManager {
         // indefinitely by restarting before it expired).
         forcedBloodMoonStartTime = bloodMoonDataConfig.getLong("bloodmoon.forced-start-time", -1);
         forcedBloodMoonDuration = bloodMoonDataConfig.getLong("bloodmoon.forced-duration-minutes", -1);
+        String worldId = bloodMoonDataConfig.getString("bloodmoon.world-id");
+        if (worldId != null) {
+            try {
+                bloodMoonWorldId = UUID.fromString(worldId);
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Invalid bloodmoon.world-id in BloodMoonData.yml; using the first enabled world.");
+                bloodMoonWorldId = null;
+            }
+        }
+        // Warning dedupe: restore the last day a pre-blood-moon warning broadcast on so a
+        // same-day restart doesn't fire the warning twice.
+        lastWarnedDay = bloodMoonDataConfig.getLong("bloodmoon.last-warned-day", -1);
 
         if (bloodMoonPersisted) {
             plugin.getLogger().info("Loaded persisted blood moon from BloodMoonData.yml - day " + persistedBloodMoonDay);
@@ -133,6 +205,9 @@ public class BloodMoonManager {
             // Bug C6 fix: persist the forced blood moon anchor + duration alongside the flags.
             bloodMoonDataConfig.set("bloodmoon.forced-start-time", forcedBloodMoonStartTime);
             bloodMoonDataConfig.set("bloodmoon.forced-duration-minutes", forcedBloodMoonDuration);
+            bloodMoonDataConfig.set("bloodmoon.world-id",
+                    bloodMoonWorldId == null ? null : bloodMoonWorldId.toString());
+            bloodMoonDataConfig.set("bloodmoon.last-warned-day", lastWarnedDay);
             bloodMoonDataConfig.save(bloodMoonDataFile);
 
             plugin.debugLog("Saved blood moon data to BloodMoonData.yml: active=" + bloodMoonPersisted + ", day=" + persistedBloodMoonDay + ", forced=" + forcedBloodMoon);
@@ -143,12 +218,40 @@ public class BloodMoonManager {
 
     // === STATE QUERIES ===
 
+    /**
+     * Returns the single world that owns the server-wide event clock. During an active event the
+     * UUID is persisted, so world load order cannot silently transfer ownership to another world.
+     */
+    public World getReferenceWorld() {
+        boolean activeState = bloodMoonPersisted || forcedBloodMoon;
+        if (activeState && bloodMoonWorldId != null) {
+            World anchored = Bukkit.getWorld(bloodMoonWorldId);
+            if (anchored != null && plugin.isWorldEnabled(anchored)) return anchored;
+            return null;
+        }
+
+        World firstEnabled = Bukkit.getWorlds().stream()
+                .filter(plugin::isWorldEnabled)
+                .findFirst()
+                .orElse(null);
+        if (activeState && firstEnabled != null && bloodMoonWorldId == null) {
+            // Migration path for BloodMoonData.yml written before the world UUID was persisted.
+            bloodMoonWorldId = firstEnabled.getUID();
+            save();
+        }
+        return firstEnabled;
+    }
+
     public boolean isActive(World world) {
         if (!bloodMoonEnabled) return false;
+        if (world == null) return false;
         if (!plugin.isWorldEnabled(world)) return false;
 
-        long time = world.getTime();
-        long fullTime = world.getFullTime();
+        World referenceWorld = getReferenceWorld();
+        if (referenceWorld == null) return false;
+
+        long time = referenceWorld.getTime();
+        long fullTime = referenceWorld.getFullTime();
         long dayNumber = fullTime / 24000;
 
         boolean isDayOf = (dayNumber > 0) && (dayNumber % bloodMoonInterval == 0);
@@ -167,7 +270,7 @@ public class BloodMoonManager {
         // CRITICAL FIX: For forced blood moon, use actual elapsed time
         if (forcedBloodMoon) {
             if (forcedBloodMoonStartTime == -1) {
-                forcedBloodMoonStartTime = System.currentTimeMillis();
+                return false;
             }
 
             long elapsedMs = System.currentTimeMillis() - forcedBloodMoonStartTime;
@@ -181,19 +284,6 @@ public class BloodMoonManager {
             }
 
             return isDayOf; // Still active if duration hasn't expired
-        }
-
-        // CRITICAL FIX: Check if blood moon should have ended based on duration
-        if (bloodMoonPersisted && isNight) {
-            long bloodMoonStartTick = 13000; // Blood moon starts at night
-            long currentTick = time;
-            long durationTicks = bloodMoonForceDuration * 60 * 20L; // Convert minutes to ticks
-            long bloodMoonEndTick = bloodMoonStartTick + durationTicks;
-
-            // If current time is past the blood moon duration, it's no longer active
-            if (currentTick > bloodMoonEndTick) {
-                return false;
-            }
         }
 
         return isDayOf && isNight;
@@ -246,18 +336,43 @@ public class BloodMoonManager {
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (!bloodMoonEnabled || Bukkit.getWorlds().isEmpty()) return;
+                if (Bukkit.getWorlds().isEmpty()) return;
+                if (!bloodMoonEnabled) {
+                    if (bloodMoonPersisted || forcedBloodMoon) {
+                        bloodMoonPersisted = false;
+                        persistedBloodMoonDay = -1;
+                        forcedBloodMoon = false;
+                        forcedBloodMoonStartTime = -1;
+                        forcedBloodMoonDuration = -1;
+                        bloodMoonWorldId = null;
+                        save();
+                        bloodMoonBar.removeAll();
+                        signalBloodMoonEnd();
+                    }
+                    return;
+                }
 
-                // Fix RC1: Use the first *enabled* world, not Bukkit.getWorlds().get(0).
-                // With Multiverse/BetterRTP, world[0] can be a lobby or temp world that
-                // is NOT in enabledWorlds.  isBloodMoonActive() short-circuits on
-                // !isWorldEnabled(), returns false, and the else-branch below would
-                // spuriously reset forcedBloodMoon=false, killing the MM spawn loop.
-                World mainWorld = Bukkit.getWorlds().stream()
-                        .filter(plugin::isWorldEnabled)
-                        .findFirst()
-                        .orElse(null);
-                if (mainWorld == null) return;
+                World mainWorld = getReferenceWorld();
+                if (mainWorld == null) {
+                    // Give Multiverse-style world managers time to load the persisted anchor. If it
+                    // never returns, terminate instead of silently transferring the event clock.
+                    if ((bloodMoonPersisted || forcedBloodMoon) && ++missingReferenceWorldChecks >= 60) {
+                        bloodMoonPersisted = false;
+                        persistedBloodMoonDay = -1;
+                        forcedBloodMoon = false;
+                        forcedBloodMoonStartTime = -1;
+                        forcedBloodMoonDuration = -1;
+                        bloodMoonWorldId = null;
+                        save();
+                        bloodMoonBar.removeAll();
+                        signalBloodMoonEnd();
+                    }
+                    return;
+                }
+                missingReferenceWorldChecks = 0;
+
+                // Pre-blood-moon countdown warning (dawn broadcast, deduped per day).
+                checkWarning(mainWorld);
 
                 // Fix RC4: Detect real-time forced-blood-moon expiry HERE, before
                 // calling isBloodMoonActive().  When duration runs out during nighttime,
@@ -274,6 +389,7 @@ public class BloodMoonManager {
                         forcedBloodMoonDuration = -1;
                         bloodMoonPersisted = false;
                         persistedBloodMoonDay = -1;
+                        bloodMoonWorldId = null;
                         save();
                         bloodMoonBar.removeAll();
                         plugin.debugLog("Forced blood moon expired by real-time duration — cleaning up.");
@@ -294,6 +410,7 @@ public class BloodMoonManager {
                         long currentDay = mainWorld.getFullTime() / 24000L;
                         bloodMoonPersisted = true;
                         persistedBloodMoonDay = currentDay;
+                        bloodMoonWorldId = mainWorld.getUID();
                         save();
 
                         MythicMobsManager mm = plugin.getMythicMobsManager();
@@ -313,15 +430,14 @@ public class BloodMoonManager {
 
                     long time = mainWorld.getTime();
 
-                    // CRITICAL FIX: Force night time during blood moon
-                    if (time < 13000 || time > 23000) {
-                        mainWorld.setTime(14000); // Force to night
+                    if (forcedBloodMoon && (time < 13000 || time > 23000)) {
+                        mainWorld.setTime(14000);
                         time = 14000;
                     }
 
                     // CRITICAL FIX: Use actual command duration, not config default
                     long actualDuration = forcedBloodMoonDuration != -1 ? forcedBloodMoonDuration : bloodMoonForceDuration;
-                    long durationTicks = actualDuration * 60 * 20L;
+                    long durationTicks = forcedBloodMoon ? actualDuration * 60 * 20L : 10_000L;
                     long bloodMoonStartTick = 13000;
                     long bloodMoonEndTick = bloodMoonStartTick + durationTicks;
                     long remaining = bloodMoonEndTick - time;
@@ -380,6 +496,7 @@ public class BloodMoonManager {
                             forcedBloodMoon = false;
                             forcedBloodMoonStartTime = -1;
                             forcedBloodMoonDuration = -1;
+                            bloodMoonWorldId = null;
                             save();
                             plugin.debugLog("Blood moon ended (in-game time) - persistence reset.");
                             signalBloodMoonEnd();
@@ -401,6 +518,7 @@ public class BloodMoonManager {
                             forcedBloodMoon = false;
                             forcedBloodMoonStartTime = -1;
                             forcedBloodMoonDuration = -1;
+                            bloodMoonWorldId = null;
                             save();
                             plugin.debugLog("Day time detected - blood moon persistence reset");
                             // Fix RC3: Signal MM manager here too.  Previously onBloodMoonEnd()
@@ -464,13 +582,113 @@ public class BloodMoonManager {
         }
     }
 
+    // === PRE-BLOOD-MOON WARNINGS ===
+
+    /**
+     * Called every second from the lifecycle task. On the dawn (world time < 1000) of each of the
+     * last {@code warningDaysBefore} days before a natural blood moon, broadcasts the configurable
+     * warning exactly once per day. {@code lastWarnedDay} is the authoritative dedupe (persisted),
+     * so lag skipping ticks can't double-fire, and forced blood moons never trigger warnings.
+     */
+    private void checkWarning(World world) {
+        if (!warningEnabled || !bloodMoonEnabled || forcedBloodMoon) return;
+
+        long dayNumber = world.getFullTime() / 24000L;
+        if (dayNumber == lastWarnedDay) return;        // already warned today
+        if (world.getTime() >= 1000) return;           // only fire at/near dawn
+
+        int daysUntil = daysUntilNaturalBloodMoon(dayNumber);
+        if (daysUntil < 1 || daysUntil > warningDaysBefore) return;
+
+        lastWarnedDay = dayNumber;
+        save();
+
+        plugin.getLogger().info("Blood moon warning broadcast: " + daysUntil + " day(s) remaining (day " + dayNumber + ")");
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (plugin.isWorldEnabled(p.getWorld()) || plugin.isLobbyWorld(p.getWorld())) {
+                sendWarningToPlayer(p, daysUntil);
+            }
+        }
+    }
+
+    /**
+     * Days until the next natural blood moon day (a day D > dayNumber with D % interval == 0).
+     * On the blood moon day itself this returns the FULL interval (the next one) — correct: there
+     * is no "0 days" warning, the existing natural-start message covers day-of.
+     */
+    private int daysUntilNaturalBloodMoon(long dayNumber) {
+        long rem = dayNumber % bloodMoonInterval;
+        return (int) (rem == 0 ? bloodMoonInterval : bloodMoonInterval - rem);
+    }
+
+    /** Sends the full warning package (chat lines + optional title + optional sound) to one player. */
+    private void sendWarningToPlayer(Player p, int daysUntil) {
+        // Chat: exact per-day list, falling back to the generic {0}-placeholder message.
+        List<String> lines = plugin.getMessages().getList("bloodmoon.warning.days." + daysUntil);
+        if (lines.isEmpty()) {
+            lines = plugin.getMessages().getList("bloodmoon.warning.generic", daysUntil);
+        }
+        for (String line : lines) {
+            p.sendMessage(line);
+        }
+
+        // Title
+        if (warningTitleEnabled) {
+            p.showTitle(Title.title(
+                    plugin.getMessages().getComponent("bloodmoon.warning.title", daysUntil),
+                    plugin.getMessages().getComponent("bloodmoon.warning.subtitle", daysUntil),
+                    Title.Times.times(
+                            Duration.ofMillis(warningTitleFadeIn * 50L),
+                            Duration.ofMillis(warningTitleStay * 50L),
+                            Duration.ofMillis(warningTitleFadeOut * 50L))));
+        }
+
+        // Sound
+        if (warningSoundEnabled && warningSound != null) {
+            p.playSound(p.getLocation(), warningSound, warningSoundVolume, warningSoundPitch);
+        }
+    }
+
+    /**
+     * Join replay: if today's dawn warning already broadcast (dayNumber == lastWarnedDay), replay
+     * it to the joining player ~2s after join (past the join-message spam). Players joining before
+     * dawn get nothing here — they'll see the live broadcast instead.
+     */
+    public void sendWarningOnJoinIfApplicable(Player player) {
+        if (!warningEnabled || !bloodMoonEnabled || forcedBloodMoon) return;
+
+        World mainWorld = Bukkit.getWorlds().stream()
+                .filter(plugin::isWorldEnabled)
+                .findFirst()
+                .orElse(null);
+        if (mainWorld == null) return;
+
+        long dayNumber = mainWorld.getFullTime() / 24000L;
+        if (dayNumber != lastWarnedDay) return;        // no broadcast fired today
+
+        int daysUntil = daysUntilNaturalBloodMoon(dayNumber);
+        if (daysUntil < 1 || daysUntil > warningDaysBefore) return;
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()
+                    && (plugin.isWorldEnabled(player.getWorld()) || plugin.isLobbyWorld(player.getWorld()))) {
+                sendWarningToPlayer(player, daysUntil);
+            }
+        }, 40L);
+    }
+
     // === COMMANDS ===
 
     /** /xa forcebloodmoon — the world has already been resolved and the duration validated by the command. */
     public void forceBloodMoon(CommandSender sender, World world, int duration) {
+        if (!bloodMoonEnabled) {
+            sender.sendMessage("§cBlood Moons are disabled in config.yml.");
+            return;
+        }
         forcedBloodMoon = true;
         forcedBloodMoonStartTime = System.currentTimeMillis(); // CRITICAL FIX: Track start time
         forcedBloodMoonDuration = duration; // CRITICAL FIX: Store actual duration
+        bloodMoonWorldId = world.getUID();
 
         // CRITICAL FIX: Save forced blood moon state
         save();
@@ -496,11 +714,13 @@ public class BloodMoonManager {
     public void stopBloodMoon(CommandSender sender) {
         // CRITICAL FIX: Stop blood moon and clean up
         if (bloodMoonPersisted || forcedBloodMoon) {
+            World world = getReferenceWorld();
             bloodMoonPersisted = false;
             persistedBloodMoonDay = -1;
             forcedBloodMoon = false;
             forcedBloodMoonStartTime = -1; // CRITICAL FIX: Reset forced start time
             forcedBloodMoonDuration = -1; // CRITICAL FIX: Reset forced duration
+            bloodMoonWorldId = null;
             save();
 
             // --- MythicMobs: stop tick loop + despawn blood-moon entities ---
@@ -512,12 +732,6 @@ public class BloodMoonManager {
             }
 
             // CRITICAL FIX: Set time to day to prevent immediate restart
-            if (Bukkit.getWorlds().isEmpty()) return;
-            // Bug M5 fix: target the first ENABLED world, not getWorlds().get(0).
-            World world = Bukkit.getWorlds().stream()
-                    .filter(plugin::isWorldEnabled)
-                    .findFirst()
-                    .orElse(null);
             if (world == null) {
                 sender.sendMessage("§cNo enabled world is currently loaded.");
                 return;

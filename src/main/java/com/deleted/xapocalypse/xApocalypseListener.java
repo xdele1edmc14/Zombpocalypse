@@ -2,10 +2,12 @@ package com.deleted.xapocalypse;
 
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.player.*;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.UUID;
@@ -53,14 +55,18 @@ public class xApocalypseListener implements Listener {
     public void onEntityDeath(EntityDeathEvent event) {
         // Grant Mutant rewards BEFORE notifyEntityDeath clears the tracking slot below.
         UUID deadId = event.getEntity().getUniqueId();
-        if (plugin.getMythicMobsManager().isTrackedMutant(deadId)) {
+        MythicMobsManager mythicManager = plugin.getMythicMobsManager();
+        boolean isMythicEntity = mythicManager.isMythicMob(event.getEntity());
+        boolean isMutant = mythicManager.isTrackedMutant(deadId)
+                || mythicManager.isConfiguredMutant(event.getEntity());
+        if (isMutant) {
             plugin.getDropManager().applyMutantRewards(event, event.getEntity().getKiller());
         }
 
         // Free a MythicMobs Mutant cap slot the moment any entity dies (cheap no-op for non-mutants).
         // Closes the cap-leak where a killed Mutant whose chunk unloaded before pruning kept its slot
         // forever, eventually filling max-global-cap with ghosts and silently stopping all spawns.
-        plugin.getMythicMobsManager().notifyEntityDeath(deadId);
+        mythicManager.notifyEntityDeath(deadId);
 
         if (event.getEntity() instanceof Zombie zombie) {
             xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
@@ -77,17 +83,16 @@ public class xApocalypseListener implements Listener {
             // Reset fire ticks to prevent post-death burning
             zombie.setFireTicks(0);
 
-            // Rare configurable Zombie Guts drop. Inside the Zombie block (and thus BEFORE the
-            // scent-system early-return below) so it works even when the scent system is disabled.
-            immunity.maybeDropZombieGuts(event, zombie);
-
-            // Configurable custom drops (separate tables for normal kills vs blood-moon kills).
-            // Independent of and stacking with the Zombie Guts drop above.
-            plugin.getDropManager().applyDrops(event, zombie);
-
-            // Configurable console commands run on kill (separate normal/blood-moon tables,
-            // per-entry chance, %player% placeholder). Independent of the drops above.
-            plugin.getDropManager().runKillCommands(zombie);
+            // Mutants have their own reward tier. Ordinary rewards only apply where the apocalypse
+            // is active; disabled/lobby worlds cannot be used as an economy farming bypass.
+            boolean ordinaryRewardEligible = !isMutant && !isMythicEntity
+                    && plugin.isWorldEnabled(zombie.getWorld())
+                    && !plugin.isLobbyWorld(zombie.getWorld());
+            if (ordinaryRewardEligible) {
+                immunity.maybeDropZombieGuts(event, zombie);
+                plugin.getDropManager().applyDrops(event, zombie);
+                plugin.getDropManager().runKillCommands(zombie);
+            }
         }
 
         // Bug M3 fix: scent-gain-on-kill stays gated by the scent toggle, but the VETERAN promotion
@@ -137,6 +142,9 @@ public class xApocalypseListener implements Listener {
         // CRITICAL FIX: Clean up any existing bossbars for this player
         bloodMoon.cleanupBossbarForPlayer(player);
 
+        // Replay today's pre-blood-moon warning to late joiners (no-op if none fired today)
+        bloodMoon.sendWarningOnJoinIfApplicable(player);
+
         immunity.onPlayerJoin(player);
     }
 
@@ -166,20 +174,19 @@ public class xApocalypseListener implements Listener {
         // whitelist could silently cancel all plugin spawns.
         if (horde.isPluginSpawning()) return;
 
+        // MythicMobs fires CreatureSpawnEvent while constructing its base Bukkit entity. Never
+        // cancel that spawn or overwrite its configured attributes with an xApocalypse class.
+        MythicMobsManager mythic = plugin.getMythicMobsManager();
+        if (mythic != null && mythic.isMythicMobOrSpawning(event.getEntity())) return;
+
         if (!plugin.isWorldEnabled(event.getLocation().getWorld())) return;
 
         Entity entity = event.getEntity();
-        String mobName = entity.getType().toString();
-        boolean inList = plugin.getMobList().contains(mobName);
-
-        if (plugin.isUseMobBlacklist()) {
-            if (inList) { event.setCancelled(true); return; }
-        } else {
-            if (!inList) { event.setCancelled(true); return; }
-        }
-
-        if (entity instanceof Monster && !(entity instanceof Zombie)) {
-            if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
+            String mobName = entity.getType().toString();
+            boolean inList = plugin.getMobList().contains(mobName);
+            boolean blocked = plugin.isUseMobBlacklist() ? inList : !inList;
+            if (blocked) {
                 event.setCancelled(true);
                 return;
             }
@@ -238,7 +245,7 @@ public class xApocalypseListener implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Zombie zombie && event.getEntity() instanceof Player player) {
             xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
@@ -307,6 +314,19 @@ public class xApocalypseListener implements Listener {
             if (isDay && !plugin.getConfig().getBoolean("zombie-settings.allow-daylight-burning", true)) {
                 event.setCancelled(true);
             }
+        }
+    }
+
+    @EventHandler
+    public void onChunkLoad(ChunkLoadEvent event) {
+        if (!plugin.getConfig().getBoolean("bloodmoon.despawn-on-end", true)) return;
+
+        int zombies = utils.cleanupExpiredBloodMoonZombies(event.getChunk());
+        int mutants = plugin.getMythicMobsManager().cleanupExpiredBloodMoonMutants(event.getChunk());
+        if (zombies + mutants > 0) {
+            plugin.debugLog("Deferred Blood Moon cleanup removed " + zombies + " zombie(s) and "
+                    + mutants + " Mutant(s) from chunk " + event.getChunk().getX() + ","
+                    + event.getChunk().getZ() + ".");
         }
     }
 }

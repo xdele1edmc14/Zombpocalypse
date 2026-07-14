@@ -112,9 +112,13 @@ public final class UndeadSpawner {
         Location spawnLoc = surface.clone().add(0.0, -START_BELOW_SURFACE_Y, 0.0);
         // Bug 20 fix: set the plugin-spawning flag so onEntitySpawn skips the mob-list check
         // and does not call assignZombieType again (we call it ourselves below).
+        Zombie zombie;
         plugin.setPluginSpawning(true);
-        Zombie zombie = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
-        plugin.setPluginSpawning(false);
+        try {
+            zombie = (Zombie) world.spawnEntity(spawnLoc, EntityType.ZOMBIE);
+        } finally {
+            plugin.setPluginSpawning(false);
+        }
         if (zombie == null) {
             activeOrRecentByBlockMs.remove(blockKey);
             return null;
@@ -235,6 +239,9 @@ public final class UndeadSpawner {
 
     private boolean isValidSurface(Block surfaceBlock) {
         if (surfaceBlock == null) return false;
+        // In the Nether the highest block is normally the bedrock ceiling. Treating bedrock as a
+        // valid floor placed hordes on top of the roof instead of in the cavern with the player.
+        if (surfaceBlock.getType() == org.bukkit.Material.BEDROCK) return false;
         if (!surfaceBlock.getType().isSolid()) return false;
         if (!surfaceBlock.getType().isOccluding()) return false;
         if (surfaceBlock.isLiquid()) return false;
@@ -257,10 +264,11 @@ public final class UndeadSpawner {
         // /rtp dropped the player into natural (non-cleared) terrain, producing zero spawns, while
         // the cleared /mvtp world-spawn worked. Scan downward from the top to the first real
         // standing surface so we land on the ground beneath the canopy instead of giving up.
-        int topY = world.getHighestBlockAt(target).getY();
+        int targetY = target.getBlockY();
+        int topY = Math.min(world.getHighestBlockAt(target).getY(), targetY + 48);
         int x = target.getBlockX();
         int z = target.getBlockZ();
-        int floorY = Math.max(world.getMinHeight(), topY - 48); // don't tunnel arbitrarily deep
+        int floorY = Math.max(world.getMinHeight(), targetY - 48);
 
         for (int y = topY; y >= floorY; y--) {
             Block candidate = world.getBlockAt(x, y, z);

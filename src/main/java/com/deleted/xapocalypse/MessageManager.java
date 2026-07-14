@@ -213,6 +213,22 @@ public class MessageManager {
     }
 
     /**
+     * Get list of strings with {0}, {1}, ... placeholder replacement applied to every line.
+     */
+    public List<String> getList(String path, Object... args) {
+        List<String> list = getList(path);
+        if (args.length == 0 || list.isEmpty()) return list;
+        return list.stream()
+                .map(line -> {
+                    for (int i = 0; i < args.length; i++) {
+                        line = line.replace("{" + i + "}", String.valueOf(args[i]));
+                    }
+                    return line;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get raw Component for advanced usage (titles, action bars, etc.)
      */
     public Component getComponent(String path, Object... args) {

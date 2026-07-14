@@ -116,8 +116,10 @@ public class HordeManager {
         finalHordeSize = Math.min(finalHordeSize, maxSingleHorde);
 
         // Cap with max-total-zombies instead of scent-system.spawn-cap
-        int spawnCap = plugin.getConfig().getInt("performance.max-total-zombies", 300);
-        finalHordeSize = Math.min(finalHordeSize, spawnCap);
+        int spawnCap = Math.max(0, plugin.getConfig().getInt("performance.max-total-zombies", 300));
+        int existingZombies = world.getEntitiesByClass(Zombie.class).size();
+        int availableSlots = Math.max(0, spawnCap - existingZombies);
+        finalHordeSize = Math.min(finalHordeSize, availableSlots);
 
         plugin.debugLog("Attempting to spawn horde of size: " + finalHordeSize + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
@@ -133,14 +135,14 @@ public class HordeManager {
 
             // Retry once with a fresh random offset before giving up — reduces wasted
             // attempts near water, ravines, or ocean biomes.
-            if (surface == null) {
+            if (surface == null || plugin.isInsideClaim(surface)) {
                 xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
                 zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
                 spawnLoc = player.getLocation().clone().add(xOffset, 0, zOffset);
                 surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
             }
 
-            if (surface == null) {
+            if (surface == null || plugin.isInsideClaim(surface)) {
                 skipped++;
                 continue;
             }
@@ -154,9 +156,13 @@ public class HordeManager {
                 long startDelayTicks = i % 5L;
                 undeadSpawner.trySpawnUndeadRise(surface, surfaceBlock, surfaceData, startDelayTicks);
             } else {
+                Zombie zombie;
                 isPluginSpawning = true;
-                Zombie zombie = (Zombie) surface.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
-                isPluginSpawning = false;
+                try {
+                    zombie = (Zombie) surface.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
+                } finally {
+                    isPluginSpawning = false;
+                }
                 if (zombie != null) utils.assignZombieType(zombie);
             }
         }

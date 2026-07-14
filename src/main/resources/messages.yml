@@ -1,4 +1,4 @@
-# xApocalypse v1.3.0 - Localization File
+# xApocalypse v1.4.1 - Localization File
 # SUPPORTS BOTH FORMATS:
 # - MiniMessage: <gradient:red:blue>Text</gradient>, <rainbow>Text</rainbow>, <#FF5555>Hex</#FF5555>
 # - Legacy: &a, &b, &l, &n, §c, etc.
@@ -15,7 +15,7 @@ player-not-found: "&cPlayer not found: {0}"
 commands:
   unknown: "&cUnknown sub-command: &f{0}&c. Try &f/xa help&c."
   help:
-    title: "&8&m       &r &c&lxApocalypse &r&7v1.3.0 &8&m       "
+    title: "&8&m       &r &c&lxApocalypse &r&7v1.4.1 &8&m       "
     author: "&7Created by &fxDele1ed"
     help: "&c/xa help &8» &7Show this command list"
     spawn: "&c/xa spawn <type|horde> [count] [radius] &8» &7Spawn zombies"
@@ -36,6 +36,28 @@ bloodmoon:
   force-start: "<gradient:dark_red:red><bold>Blood Moon has been FORCE STARTED!</bold></gradient>"
   force-time-set: "&7(Time set to night to begin event immediately)"
   natural-start: "&4&lBLOOD MOON RISES! &cPrepare for battle!"
+  # Countdown warnings (broadcast at dawn on each of the last 'days-before' days — see config.yml).
+  # Add/edit a numbered list per remaining-day count; 'generic' ({0} = days left) is used when no
+  # exact match exists (e.g. days-before > 3).
+  warning:
+    days:
+      "3":
+        - "&c⚠ &7The air feels… wrong."
+        - "&7Villagers whisper of a coming &4Blood Moon&7."
+        - "&c3 days remain. &7Prepare… or be consumed."
+      "2":
+        - "&c⚠ &7The sky grows darker each night."
+        - "&7Creatures stir… stronger than before."
+        - "&7The &4Blood Moon &7rises in &c2 days&7."
+      "1":
+        - "&4☠ &cThis is your final warning."
+        - "&7The &4Blood Moon &7rises &ctomorrow night&7."
+        - "&7Sharpen your blades. Lock your doors."
+        - "&cSurvive… if you can."
+    generic:
+      - "&c⚠ &7A &4Blood Moon &7approaches in &c{0} days&7."
+    title: "&4⚠ Blood Moon ⚠"
+    subtitle: "&c{0} day(s) remain…"
 
 # Immunity System
 immunity:

@@ -126,13 +126,22 @@ public class xApocalypseCommand implements CommandExecutor {
                 sender.sendMessage(messageManager.getWithPrefix("commands.item.usage"));
                 return true;
             }
+        } else if (args.length >= 2) {
+            targetPlayer = Bukkit.getPlayer(args[1]);
+            if (targetPlayer == null) {
+                sender.sendMessage(messageManager.getWithPrefix("player-not-found", args[1]));
+                return true;
+            }
         } else {
             targetPlayer = (Player) sender;
         }
 
         if (args.length >= 1 && args[0].equalsIgnoreCase("zombie_guts") && plugin.isZombieGutsEnabled()) {
             ItemStack guts = plugin.getImmunity().createZombieGutsItem(1);
-            targetPlayer.getInventory().addItem(guts);
+            if (!targetPlayer.getInventory().addItem(guts).isEmpty()) {
+                sender.sendMessage("§c" + targetPlayer.getName() + "'s inventory is full.");
+                return true;
+            }
 
             if (sender instanceof Player) {
                 targetPlayer.sendMessage(messageManager.getWithPrefix("commands.item.received", messageManager.get("immunity.item-name")));
@@ -152,16 +161,9 @@ public class xApocalypseCommand implements CommandExecutor {
             return true;
         }
 
-        if (Bukkit.getWorlds().isEmpty()) return true;
-        // Bug M5 fix: use the first ENABLED world, not getWorlds().get(0), which on
-        // Multiverse/BetterRTP is often a lobby/temp world. setTime() on the wrong world
-        // left the actual gameplay world in daytime while the blood moon logic ran elsewhere.
-        World world = Bukkit.getWorlds().stream()
-                .filter(plugin::isWorldEnabled)
-                .findFirst()
-                .orElse(null);
+        World world = bloodMoon.getReferenceWorld();
         if (world == null) {
-            sender.sendMessage("§cNo enabled world is currently loaded.");
+            sender.sendMessage("§cNo enabled Blood Moon reference world is currently loaded.");
             return true;
         }
 
@@ -237,6 +239,15 @@ public class xApocalypseCommand implements CommandExecutor {
             }
         }
 
+        if (count < 1) {
+            sender.sendMessage("§cCount must be at least 1.");
+            return true;
+        }
+        if (radius < 1) {
+            sender.sendMessage("§cRadius must be at least 1 block.");
+            return true;
+        }
+
         count = Math.min(count, plugin.getConfig().getInt("performance.max-total-zombies", 300)); // Use config value
         radius = Math.min(radius, 50); // Keep radius reasonable
 
@@ -279,9 +290,13 @@ public class xApocalypseCommand implements CommandExecutor {
                 // /xa spawn worked in non-enabled worlds (nether/end) but not the main world.
                 // Because the gate is bypassed, onEntitySpawn no longer assigns a type, so we
                 // assign it here ourselves.
+                Zombie zombie;
                 plugin.setPluginSpawning(true);
-                Zombie zombie = (Zombie) player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
-                plugin.setPluginSpawning(false);
+                try {
+                    zombie = (Zombie) player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
+                } finally {
+                    plugin.setPluginSpawning(false);
+                }
                 if (zombie != null) {
                     utils.assignZombieType(zombie);
                     hordeSpawned++;
@@ -315,9 +330,13 @@ public class xApocalypseCommand implements CommandExecutor {
 
             // Bug fix: bypass the onEntitySpawn mob-list gate for admin spawns, then apply the
             // requested type directly.
+            Zombie zombie;
             plugin.setPluginSpawning(true);
-            Zombie zombie = (Zombie) player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
-            plugin.setPluginSpawning(false);
+            try {
+                zombie = (Zombie) player.getWorld().spawnEntity(surface, EntityType.ZOMBIE);
+            } finally {
+                plugin.setPluginSpawning(false);
+            }
             if (zombie != null) {
                 utils.applyZombieType(zombie, type);
                 spawnedCount++;

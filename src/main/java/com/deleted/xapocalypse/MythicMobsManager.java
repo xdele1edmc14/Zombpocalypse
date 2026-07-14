@@ -3,7 +3,9 @@ package com.deleted.xapocalypse;
 import io.lumine.mythic.api.mobs.MythicMob;
 import io.lumine.mythic.bukkit.BukkitAPIHelper;
 import io.lumine.mythic.bukkit.MythicBukkit;
+import io.lumine.mythic.core.mobs.ActiveMob;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -11,17 +13,23 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 public class MythicMobsManager {
+    private static final NamespacedKey MYTHIC_ENTITY_KEY =
+            new NamespacedKey("xapocalypse", "mythic_entity");
+    private static final NamespacedKey BLOOD_MOON_MUTANT_KEY =
+            new NamespacedKey("xapocalypse", "blood_moon_mutant");
+
     private final xApocalypse plugin;
     private final Logger log;
     private BukkitAPIHelper mmAPI;
@@ -51,38 +59,48 @@ public class MythicMobsManager {
 
     public void init() {
         this.loadConfig();
+    }
+
+    public void loadConfig() {
+        FileConfiguration cfg = this.plugin.getConfig();
+        this.mobType = cfg.getString("mythicmobs.integration.mob-type", "The_Mutant");
+        this.maxGlobalCap = Math.max(0, cfg.getInt("mythicmobs.integration.max-global-cap", 15));
+        this.spawnChance = Math.max(0.0, Math.min(1.0,
+                cfg.getDouble("mythicmobs.integration.spawn-chance", 0.20)));
+        this.spawnRadiusMin = Math.max(1, cfg.getInt("mythicmobs.integration.spawn-radius.min", 20));
+        this.spawnRadiusMax = Math.max(this.spawnRadiusMin + 1,
+                cfg.getInt("mythicmobs.integration.spawn-radius.max", 40));
+        this.spawnTickInterval = Math.max(1,
+                cfg.getInt("mythicmobs.integration.spawn-tick-interval", 100));
+
+        hookMythicMobs();
+    }
+
+    private void hookMythicMobs() {
         if (Bukkit.getPluginManager().getPlugin("MythicMobs") == null) {
             this.log.warning("[MythicMobs] MythicMobs not found — smart spawn disabled.");
             this.mythicMobsEnabled = false;
+            this.mmAPI = null;
         } else {
             try {
                 this.mmAPI = MythicBukkit.inst().getAPIHelper();
                 Optional<MythicMob> mob = MythicBukkit.inst().getMobManager().getMythicMob(this.mobType);
                 if (mob.isEmpty()) {
                     this.log.warning("[MythicMobs] Mob type '" + this.mobType + "' not found in MythicMobs.");
+                    this.mythicMobsEnabled = false;
+                    this.activeMutants.clear();
                 } else {
                     this.log.info("[MythicMobs] Hooked in. Mob type '" + this.mobType + "' verified.");
+                    this.mythicMobsEnabled = true;
+                    this.activeMutants.clear();
+                    rebuildTrackedMutants();
                 }
-
-                this.mythicMobsEnabled = true;
             } catch (Exception e) {
                 this.log.severe("[MythicMobs] Failed to hook into MythicMobs API: " + e.getMessage());
                 this.mythicMobsEnabled = false;
+                this.mmAPI = null;
             }
-
         }
-    }
-
-    public void loadConfig() {
-        FileConfiguration cfg = this.plugin.getConfig();
-        this.mobType = cfg.getString("mythicmobs.integration.mob-type", "The_Mutant");
-        this.maxGlobalCap = cfg.getInt("mythicmobs.integration.max-global-cap", 15);
-        // Fallback default used only if the key is absent. NOTE: the shipped config.yml sets this
-        // explicitly (0.05), so on a configured server the on-disk value is what actually applies.
-        this.spawnChance = cfg.getDouble("mythicmobs.integration.spawn-chance", 0.20);
-        this.spawnRadiusMin = cfg.getInt("mythicmobs.integration.spawn-radius.min", 20);
-        this.spawnRadiusMax = cfg.getInt("mythicmobs.integration.spawn-radius.max", 40);
-        this.spawnTickInterval = cfg.getInt("mythicmobs.integration.spawn-tick-interval", 100);
     }
 
     public void onBloodMoonStart() {
@@ -111,21 +129,24 @@ public class MythicMobsManager {
         this.log.info("[MythicMobs] Blood Moon ended. Mutants still alive: " + this.activeMutants.size());
     }
 
-    /**
-     * Removes every still-living tracked Mutant and clears the tracking set — called when a blood
-     * moon ends so its bosses don't linger past the event. Entities whose chunk is unloaded simply
-     * resolve to null here; their UUIDs are dropped from the set regardless so no cap slot leaks.
-     */
+    /** Removes loaded Blood-Moon Mutants and retains unloaded UUIDs for deferred chunk cleanup. */
     public int despawnActiveMutants() {
         int removed = 0;
-        for (UUID uuid : this.activeMutants) {
+        Iterator<UUID> iterator = this.activeMutants.iterator();
+        while (iterator.hasNext()) {
+            UUID uuid = iterator.next();
             Entity entity = Bukkit.getEntity(uuid);
-            if (entity != null && !entity.isDead()) {
+            if (entity == null) continue;
+            if (entity.isDead()) {
+                iterator.remove();
+                continue;
+            }
+            if (entity.getPersistentDataContainer().has(BLOOD_MOON_MUTANT_KEY, PersistentDataType.BYTE)) {
                 entity.remove();
+                iterator.remove();
                 removed++;
             }
         }
-        this.activeMutants.clear();
         if (removed > 0) {
             this.plugin.debugLog("[MythicMobs] Blood moon ended — despawned " + removed + " Mutant(s).");
         }
@@ -152,14 +173,14 @@ public class MythicMobsManager {
             int spawned = 0;
 
             for(int i = 0; i < count; ++i) {
-                if (this.activeMutants.size() >= this.maxGlobalCap) {
+                if (this.maxGlobalCap > 0 && this.activeMutants.size() >= this.maxGlobalCap) {
                     player.sendMessage("§e[MythicMobs] Global cap reached.");
                     break;
                 }
 
                 Location loc = this.findSpawnLocation(player.getLocation(), radius, radius + 2);
                 if (loc != null) {
-                    Entity entity = this.spawnMythicMob(loc);
+                    Entity entity = this.spawnMythicMob(loc, false);
                     if (entity != null) {
                         ++spawned;
                     }
@@ -180,10 +201,15 @@ public class MythicMobsManager {
                 Player target = (Player)online.get(ThreadLocalRandom.current().nextInt(online.size()));
                 Location loc = this.findSpawnLocation(target.getLocation(), this.spawnRadiusMin, this.spawnRadiusMax);
                 if (loc == null) {
-                    loc = target.getLocation().add((double)ThreadLocalRandom.current().nextInt(-5, 5), (double)0.0F, (double)ThreadLocalRandom.current().nextInt(-5, 5));
+                    Location fallback = target.getLocation().add(
+                            (double)ThreadLocalRandom.current().nextInt(-5, 5), 0.0,
+                            (double)ThreadLocalRandom.current().nextInt(-5, 5));
+                    fallback = this.snapToGround(fallback);
+                    if (fallback == null || this.plugin.isInsideClaim(fallback)) return;
+                    loc = fallback;
                 }
 
-                Entity entity = this.spawnMythicMob(loc);
+                Entity entity = this.spawnMythicMob(loc, true);
                 if (entity != null) {
                     this.broadcastBloodMoonSpawn(target);
                 }
@@ -197,10 +223,7 @@ public class MythicMobsManager {
         this.bloodMoonMissCount = 0;
         this.spawnTickTask = (new BukkitRunnable() {
             public void run() {
-                // Use the first enabled world as the reference — same as startBloodMoonTask()
-                World world = Bukkit.getWorlds().stream()
-                        .filter(w -> MythicMobsManager.this.plugin.isWorldEnabled(w))
-                        .findFirst().orElse(null);
+                World world = MythicMobsManager.this.plugin.getBloodMoon().getReferenceWorld();
 
                 // Delegate the active check entirely to the plugin — it already handles
                 // forced blood moon real-time elapsed vs natural night-time checks.
@@ -228,7 +251,7 @@ public class MythicMobsManager {
                             if (ThreadLocalRandom.current().nextDouble() < MythicMobsManager.this.spawnChance) {
                                 Location loc = MythicMobsManager.this.findSpawnLocation(player.getLocation(), MythicMobsManager.this.spawnRadiusMin, MythicMobsManager.this.spawnRadiusMax);
                                 if (loc != null) {
-                                    MythicMobsManager.this.spawnMythicMob(loc);
+                                    MythicMobsManager.this.spawnMythicMob(loc, true);
                                 }
                             }
                         }
@@ -247,7 +270,7 @@ public class MythicMobsManager {
 
     }
 
-    private Entity spawnMythicMob(Location loc) {
+    private Entity spawnMythicMob(Location loc, boolean bloodMoonSpawn) {
         loc = this.snapToGround(loc);
         if (loc == null) {
             return null;
@@ -255,6 +278,12 @@ public class MythicMobsManager {
             try {
                 Entity entity = this.mmAPI.spawnMythicMob(this.mobType, loc);
                 if (entity != null) {
+                    entity.getPersistentDataContainer().set(
+                            MYTHIC_ENTITY_KEY, PersistentDataType.BYTE, (byte) 1);
+                    if (bloodMoonSpawn) {
+                        entity.getPersistentDataContainer().set(
+                                BLOOD_MOON_MUTANT_KEY, PersistentDataType.BYTE, (byte) 1);
+                    }
                     this.activeMutants.add(entity.getUniqueId());
                     this.plugin.debugLog("[MythicMobs] Spawned at " + this.formatLoc(loc));
                 }
@@ -286,26 +315,9 @@ public class MythicMobsManager {
         return null;
     }
 
-    // Bug A fix: use getHighestBlockYAt so terrain above the player's Y level is found correctly.
-    // The old scan-down approach started from the player's Y, missing hills and causing null returns.
     private Location snapToGround(Location loc) {
-        World world = loc.getWorld();
-        if (world == null) return null;
-
-        int x = loc.getBlockX();
-        int z = loc.getBlockZ();
-        
-        // Start at the very top of the world terrain, not the player's level
-        int highestY = world.getHighestBlockYAt(x, z);
-        
-        Block highestBlock = world.getBlockAt(x, highestY, z);
-        // Optional: prevent the boss from spawning in the middle of an ocean or lava lake
-        if (highestBlock.getType() == Material.WATER || highestBlock.getType() == Material.LAVA) {
-            return null; 
-        }
-
-        // Return the location one block above the highest solid block
-        return new Location(world, x + 0.5, highestY + 1, z + 0.5, loc.getYaw(), loc.getPitch());
+        if (loc == null || this.plugin.getUndeadSpawner() == null) return null;
+        return this.plugin.getUndeadSpawner().getSurfaceSpawnLocation(loc);
     }
 
     private boolean hasLineOfSight(Player player, Location target) {
@@ -342,10 +354,91 @@ public class MythicMobsManager {
     // Fix: only remove a UUID when the entity is confirmed to exist AND be dead.
     // If null, the chunk is simply unloaded — keep the UUID in the set.
     private void pruneDeadMutants() {
+        rebuildTrackedMutants();
         this.activeMutants.removeIf((uuid) -> {
             Entity entity = Bukkit.getEntity(uuid);
             return entity != null && entity.isDead();
         });
+    }
+
+    /** Rebuilds the cap from MythicMobs' own durable active-mob registry. */
+    private void rebuildTrackedMutants() {
+        if (!this.mythicMobsEnabled) return;
+        try {
+            Set<UUID> discovered = new HashSet<>();
+            for (ActiveMob activeMob : MythicBukkit.inst().getMobManager().getActiveMobs()) {
+                if (this.mobType.equals(activeMob.getMobType())) {
+                    discovered.add(activeMob.getUniqueId());
+                }
+            }
+            this.activeMutants.retainAll(discovered);
+            this.activeMutants.addAll(discovered);
+        } catch (Exception e) {
+            this.plugin.debugLog("[MythicMobs] Could not rebuild Mutant tracking: " + e.getMessage());
+        }
+    }
+
+    /** True during MythicMobs' spawn transaction or for an already-registered Mythic entity. */
+    public boolean isMythicMobOrSpawning(Entity entity) {
+        if (this.mmAPI == null || entity == null) return false;
+        try {
+            boolean mythic = MythicBukkit.inst().getMobManager().isMythicMobSpawning()
+                    || (this.mmAPI != null && this.mmAPI.isMythicMob(entity));
+            if (mythic) {
+                entity.getPersistentDataContainer().set(
+                        MYTHIC_ENTITY_KEY, PersistentDataType.BYTE, (byte) 1);
+            }
+            return mythic;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isMythicMob(Entity entity) {
+        if (entity == null) return false;
+        if (entity.getPersistentDataContainer().has(MYTHIC_ENTITY_KEY, PersistentDataType.BYTE)) return true;
+        if (this.mmAPI == null) return false;
+        try {
+            boolean mythic = this.mmAPI.isMythicMob(entity);
+            if (mythic) {
+                entity.getPersistentDataContainer().set(
+                        MYTHIC_ENTITY_KEY, PersistentDataType.BYTE, (byte) 1);
+            }
+            return mythic;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** True when an entity is the configured Mutant type, including one restored after restart. */
+    public boolean isConfiguredMutant(Entity entity) {
+        if (!this.mythicMobsEnabled || entity == null) return false;
+        if (this.activeMutants.contains(entity.getUniqueId())) return true;
+        try {
+            if (this.mmAPI == null || !this.mmAPI.isMythicMob(entity)) return false;
+            ActiveMob activeMob = this.mmAPI.getMythicMobInstance(entity);
+            if (activeMob != null && this.mobType.equals(activeMob.getMobType())) {
+                this.activeMutants.add(entity.getUniqueId());
+                return true;
+            }
+        } catch (Exception ignored) {
+            // MythicMobs may already be unregistering the entity during its death event.
+        }
+        return false;
+    }
+
+    /** Removes a deferred Blood-Moon Mutant when its previously-unloaded chunk returns. */
+    public int cleanupExpiredBloodMoonMutants(Chunk chunk) {
+        if (chunk == null || this.plugin.isBloodMoonActive(chunk.getWorld())) return 0;
+
+        int removed = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (!entity.getPersistentDataContainer().has(BLOOD_MOON_MUTANT_KEY, PersistentDataType.BYTE)) continue;
+            this.activeMutants.remove(entity.getUniqueId());
+            entity.remove();
+            removed++;
+        }
+        return removed;
     }
 
     /**

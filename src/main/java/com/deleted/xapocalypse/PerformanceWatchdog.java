@@ -83,6 +83,7 @@ public class PerformanceWatchdog {
             lodTask.cancel();
             lodTask = null;
         }
+        restoreManagedZombieAI();
         zombieLastAITick.clear();
     }
 
@@ -169,8 +170,8 @@ public class PerformanceWatchdog {
         
         for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
             if (entity instanceof Zombie zombie) {
-                // Prioritize culling zombies that are far from players
-                zombies.add(zombie);
+                // Never delete vanilla mobs, NPCs, or Zombie-based MythicMobs.
+                if (isManagedZombie(zombie)) zombies.add(zombie);
             }
         }
 
@@ -234,6 +235,7 @@ public class PerformanceWatchdog {
                 // No players — disable AI for all zombies in this world to save CPU
                 for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
                     if (!(entity instanceof Zombie zombie) || zombie.isDead() || !zombie.isValid()) continue;
+                    if (!isManagedZombie(zombie)) continue;
                     // Bug 19 fix: skip zombies mid-rise-animation (setAI(false) would conflict)
                     if (zombie.getPersistentDataContainer().has(
                             xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
@@ -246,6 +248,7 @@ public class PerformanceWatchdog {
             for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
                 if (!(entity instanceof Zombie zombie)) continue;
                 if (zombie.isDead() || !zombie.isValid()) continue;
+                if (!isManagedZombie(zombie)) continue;
                 // Bug 19 fix: skip animating zombies
                 if (zombie.getPersistentDataContainer().has(
                         xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
@@ -286,6 +289,25 @@ public class PerformanceWatchdog {
         
         long currentTick = Bukkit.getServer().getCurrentTick();
         return (currentTick - lastTick) >= lodTickInterval;
+    }
+
+    private boolean isManagedZombie(Zombie zombie) {
+        if (plugin.getUtils() == null || !plugin.getUtils().isCustomZombie(zombie)) return false;
+        MythicMobsManager mythic = plugin.getMythicMobsManager();
+        return mythic == null || !mythic.isMythicMob(zombie);
+    }
+
+    /** Restores AI that this watchdog disabled so reload, shutdown, or plugin removal is reversible. */
+    private void restoreManagedZombieAI() {
+        if (plugin.getUtils() == null) return;
+        for (World world : Bukkit.getWorlds()) {
+            for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                if (!isManagedZombie(zombie) || zombie.isDead() || !zombie.isValid()) continue;
+                if (zombie.getPersistentDataContainer().has(
+                        xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                if (!zombie.hasAI()) zombie.setAI(true);
+            }
+        }
     }
 
     /**

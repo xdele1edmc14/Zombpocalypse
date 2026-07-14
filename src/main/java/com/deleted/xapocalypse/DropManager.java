@@ -257,6 +257,7 @@ public class DropManager {
      */
     public void applyDrops(EntityDeathEvent event, Zombie zombie) {
         if (!enabled) return;
+        if (!plugin.isWorldEnabled(zombie.getWorld()) || plugin.isLobbyWorld(zombie.getWorld())) return;
         if (requirePlayerKill && zombie.getKiller() == null) return;
 
         boolean bloodMoon = plugin.isBloodMoonActive(zombie.getWorld());
@@ -270,6 +271,7 @@ public class DropManager {
      */
     public void runKillCommands(Zombie zombie) {
         if (!commandsEnabled) return;
+        if (!plugin.isWorldEnabled(zombie.getWorld()) || plugin.isLobbyWorld(zombie.getWorld())) return;
 
         Player killer = zombie.getKiller();
         if (commandsRequirePlayerKill && killer == null) return;

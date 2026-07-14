@@ -534,6 +534,7 @@ public class ImmunityManager {
      */
     public void maybeDropZombieGuts(EntityDeathEvent event, Zombie zombie) {
         if (!plugin.isZombieGutsEnabled()) return;
+        if (!plugin.isWorldEnabled(zombie.getWorld()) || plugin.isLobbyWorld(zombie.getWorld())) return;
         if (!plugin.getConfig().getBoolean("zombie-settings.zombie-guts.drop.enabled", true)) return;
         if (plugin.getConfig().getBoolean("zombie-settings.zombie-guts.drop.require-player-kill", true)
                 && zombie.getKiller() == null) return;

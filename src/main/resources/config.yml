@@ -1,4 +1,4 @@
-# xApocalypse v1.3.0 - Balanced Configuration
+# xApocalypse v1.4.1 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -215,6 +215,22 @@ bloodmoon:
   # Zombies that already existed before the blood moon are left alone. They vanish with a small
   # smoke puff and drop nothing (prevents an end-of-event loot dump).
   despawn-on-end: true
+  # Countdown warnings before a natural Blood Moon. Broadcast server-wide at dawn on each of the
+  # last 'days-before' days (messages are configurable per remaining day in messages.yml under
+  # bloodmoon.warning). Forced blood moons (/xa forcebloodmoon) never trigger warnings.
+  warning:
+    enabled: true
+    days-before: 3           # Start warning this many in-game days before the Blood Moon
+    title:                   # On-screen title shown alongside the chat warning
+      enabled: true
+      fade-in-ticks: 10
+      stay-ticks: 70
+      fade-out-ticks: 20
+    sound:                   # Ambient sound played with the warning (any Bukkit Sound name)
+      enabled: true
+      name: ENTITY_WITHER_AMBIENT
+      volume: 1.0
+      pitch: 0.6
 
 # Performance & Safety Guards
 performance:

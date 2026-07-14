@@ -315,6 +315,12 @@ public class xApocalypseUtils {
         return s == null ? null : ZombieType.valueOf(s);
     }
 
+    /** True only for zombies whose class/stats are owned by xApocalypse. */
+    public boolean isCustomZombie(Zombie zombie) {
+        return zombie != null
+                && zombie.getPersistentDataContainer().has(ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
+    }
+
     public void tickZombieAI(Zombie zombie) {
         ZombieType type = getZombieType(zombie);
         if (type == null) return;
@@ -478,6 +484,25 @@ public class xApocalypseUtils {
         }
         if (removed > 0) {
             plugin.debugLog("Blood moon ended — despawned " + removed + " blood-moon zombie(s).");
+        }
+        return removed;
+    }
+
+    /**
+     * Completes deferred Blood Moon cleanup when a previously-unloaded chunk returns. Bukkit's
+     * world entity collections only contain loaded chunks, so the normal end-of-event sweep cannot
+     * see every tagged zombie. The persistent tag is the durable cleanup record.
+     */
+    public int cleanupExpiredBloodMoonZombies(Chunk chunk) {
+        if (chunk == null || plugin.isBloodMoonActive(chunk.getWorld())) return 0;
+
+        int removed = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (!(entity instanceof Zombie zombie)) continue;
+            if (!zombie.getPersistentDataContainer().has(BLOOD_MOON_KEY, PersistentDataType.BYTE)) continue;
+            cancelBursterFuse(zombie);
+            zombie.remove();
+            removed++;
         }
         return removed;
     }

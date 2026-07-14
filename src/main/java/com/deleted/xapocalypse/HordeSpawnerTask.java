@@ -39,16 +39,6 @@ public class HordeSpawnerTask extends BukkitRunnable {
                 return;
             }
 
-            long time = targetWorld.getTime();
-            boolean isDay = time > 0 && time < 13000;
-            boolean isDayHordeSpawn = false;
-
-            if (isDay) {
-                double daySpawnChance = plugin.getConfig().getDouble("apocalypse-settings.day-spawn-chance", 0.0);
-                if (ThreadLocalRandom.current().nextDouble() > daySpawnChance) return;
-                isDayHordeSpawn = true;
-            }
-
             for (Player player : Bukkit.getOnlinePlayers()) {
                 // Diagnostic: log the live world the plugin actually sees for this player and the
                 // reason it is (or isn't) eligible. Decisive for the "/rtp lands me in the lobby
@@ -70,6 +60,17 @@ public class HordeSpawnerTask extends BukkitRunnable {
                 if (player.getGameMode() == GameMode.CREATIVE || player.getGameMode() == GameMode.SPECTATOR) {
                     plugin.debugLog("Spawn skip: " + player.getName() + " is in gamemode " + player.getGameMode() + ".");
                     continue;
+                }
+
+                // Day/night eligibility belongs to the player's actual world. Using the first
+                // enabled world's clock suppressed night hordes in secondary worlds and could
+                // spawn full night hordes around players standing in daylight.
+                long playerWorldTime = pw.getTime();
+                boolean isDayHordeSpawn = playerWorldTime >= 0 && playerWorldTime < 13000;
+                if (isDayHordeSpawn) {
+                    double daySpawnChance = plugin.getConfig().getDouble(
+                            "apocalypse-settings.day-spawn-chance", 0.0);
+                    if (ThreadLocalRandom.current().nextDouble() >= daySpawnChance) continue;
                 }
                 plugin.debugLog("Spawn eligible: " + player.getName() + " in world '" + pw.getName() + "' — spawning horde.");
                 plugin.spawnZombiesNearPlayer(player, isDayHordeSpawn);
