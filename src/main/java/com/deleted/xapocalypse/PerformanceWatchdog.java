@@ -45,7 +45,8 @@ public class PerformanceWatchdog {
     }
 
     private void loadConfig() {
-        checkIntervalTicks = plugin.getConfig().getLong("performance.check-interval-ticks", 100L);
+        checkIntervalTicks = Math.max(1L,
+                plugin.getConfig().getLong("performance.check-interval-ticks", 100L));
     }
 
     public void start() {
@@ -113,7 +114,8 @@ public class PerformanceWatchdog {
                 if (!plugin.isWorldEnabled(world)) continue;
 
                 int zombieCount = countZombiesInWorld(world);
-                int maxZombies = plugin.getConfig().getInt("performance.max-total-zombies", 300);
+                int maxZombies = Math.max(0,
+                        plugin.getConfig().getInt("performance.max-total-zombies", 300));
 
                 if (zombieCount > maxZombies) {
                     plugin.debugLog("Zombie count exceeded limit in " + world.getName() + ": " + zombieCount + " > " + maxZombies);

@@ -15,11 +15,11 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Owns the configurable custom death-reward systems: extra items a slain zombie can drop on top of
  * the vanilla rotten flesh and the Zombie Guts rare drop ({@link ImmunityManager}), console commands
- * run on a kill, an optional broadcast, and a parallel reward set for MythicMobs Mutants.
+ * run on a kill, and an optional broadcast. MythicMobs exclusively owns boss drops and rewards.
  *
  * Zombie drops/commands read {@code normal} vs {@code bloodmoon} tables from
  * {@code zombie-settings.custom-drops} / {@code zombie-settings.kill-commands}, chosen per-death by
- * {@link xApocalypse#isBloodMoonActive}. Mutant rewards read {@code mythicmobs.integration.rewards}.
+ * {@link xApocalypse#isBloodMoonActive}.
  * Config is parsed once on load/reload (cheap per-death iteration), matching the manager pattern
  * used elsewhere in the plugin.
  */
@@ -40,14 +40,6 @@ public class DropManager {
     private boolean zombieBroadcastEnabled;
     private double zombieBroadcastChance;
     private String zombieBroadcastMessage;
-
-    private boolean mutantEnabled;
-    private boolean mutantRequirePlayerKill;
-    private final List<DropEntry> mutantDrops = new ArrayList<>();
-    private final List<CommandEntry> mutantCommands = new ArrayList<>();
-    private boolean mutantBroadcastEnabled;
-    private double mutantBroadcastChance;
-    private String mutantBroadcastMessage;
 
     /** One configured drop: an item, an inclusive amount range, and a per-death roll chance (0–1). */
     private record DropEntry(Material material, int min, int max, double chance) {}
@@ -82,22 +74,10 @@ public class DropManager {
         zombieBroadcastChance = clampChance(plugin.getConfig().getDouble("zombie-settings.kill-commands.broadcast.chance", 0.0), "zombie-settings.kill-commands.broadcast");
         zombieBroadcastMessage = plugin.getConfig().getString("zombie-settings.kill-commands.broadcast.message", "");
 
-        mutantEnabled = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.enabled", false);
-        mutantRequirePlayerKill = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.require-player-kill", true);
-        mutantDrops.clear();
-        mutantCommands.clear();
-        parseTable("mythicmobs.integration.rewards.drops", mutantDrops);
-        parseCommandTable("mythicmobs.integration.rewards.commands", mutantCommands);
-        mutantBroadcastEnabled = plugin.getConfig().getBoolean("mythicmobs.integration.rewards.broadcast.enabled", false);
-        mutantBroadcastChance = clampChance(plugin.getConfig().getDouble("mythicmobs.integration.rewards.broadcast.chance", 0.0), "mythicmobs.integration.rewards.broadcast");
-        mutantBroadcastMessage = plugin.getConfig().getString("mythicmobs.integration.rewards.broadcast.message", "");
-
         plugin.debugLog("Custom drops loaded: " + normalDrops.size() + " normal, "
                 + bloodMoonDrops.size() + " blood-moon entries (enabled=" + enabled + ").");
         plugin.debugLog("Kill commands loaded: " + normalCommands.size() + " normal, "
                 + bloodMoonCommands.size() + " blood-moon entries (enabled=" + commandsEnabled + ").");
-        plugin.debugLog("Mutant rewards loaded: " + mutantDrops.size() + " drops, "
-                + mutantCommands.size() + " commands (enabled=" + mutantEnabled + ").");
     }
 
     private void parseTable(String path, List<DropEntry> into) {
@@ -282,18 +262,4 @@ public class DropManager {
         rollBroadcast(zombieBroadcastEnabled, zombieBroadcastChance, zombieBroadcastMessage, playerName);
     }
 
-    /**
-     * Rolls the configured Mutant rewards (drops, console commands, broadcast) for a slain Mutant.
-     * Item drops are appended to {@code event} and {@code %player%} is replaced with the killer's name.
-     * Called from the death listener when a tracked Mutant dies.
-     */
-    public void applyMutantRewards(EntityDeathEvent event, Player killer) {
-        if (!mutantEnabled) return;
-        if (mutantRequirePlayerKill && killer == null) return;
-
-        String playerName = killer != null ? killer.getName() : null;
-        rollDrops(mutantDrops, event);
-        rollCommands(mutantCommands, playerName);
-        rollBroadcast(mutantBroadcastEnabled, mutantBroadcastChance, mutantBroadcastMessage, playerName);
-    }
 }

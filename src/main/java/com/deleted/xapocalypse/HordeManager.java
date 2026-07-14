@@ -78,14 +78,14 @@ public class HordeManager {
             return;
         }
 
-        int baseAmount = plugin.getConfig().getInt("apocalypse-settings.base-horde-size", 6);
-        int variance = plugin.getConfig().getInt("apocalypse-settings.horde-variance", 4);
+        int baseAmount = Math.max(0, plugin.getConfig().getInt("apocalypse-settings.base-horde-size", 6));
+        int variance = Math.max(0, plugin.getConfig().getInt("apocalypse-settings.horde-variance", 4));
 
         // Day spawns use a separate (smaller) horde size so daytime isn't as brutal as night.
         // isDayHordeSpawn was passed all the way from HordeSpawnerTask but was never consumed — fixed.
         if (isDayHordeSpawn) {
-            baseAmount = plugin.getConfig().getInt("apocalypse-settings.day-horde-size", Math.max(1, baseAmount / 3));
-            variance   = plugin.getConfig().getInt("apocalypse-settings.day-horde-variance", Math.max(0, variance / 2));
+            baseAmount = Math.max(0, plugin.getConfig().getInt("apocalypse-settings.day-horde-size", Math.max(1, baseAmount / 3)));
+            variance   = Math.max(0, plugin.getConfig().getInt("apocalypse-settings.day-horde-variance", Math.max(0, variance / 2)));
         }
 
         World world = player.getWorld();
@@ -101,7 +101,8 @@ public class HordeManager {
         // Scent multiplier
         if (plugin.getConfig().getBoolean("scent-system.enabled", true)) {
             double scent = plugin.getPlayerScent(player.getUniqueId());
-            double scentScale = plugin.getConfig().getDouble("scent-system.scent-scale", 15.0);
+            double scentScale = Math.max(0.0001,
+                    plugin.getConfig().getDouble("scent-system.scent-scale", 15.0));
             multiplier *= (1.0 + (scent / scentScale));
         }
 
@@ -112,7 +113,8 @@ public class HordeManager {
         // scent multipliers could push this to the global max-total-zombies (e.g. 300), and that
         // loop runs per eligible player per spawner tick — thousands of getHighestBlockAt() calls
         // that tank TPS independent of actual entity count. The global cap stays as a secondary guard.
-        int maxSingleHorde = plugin.getConfig().getInt("apocalypse-settings.max-single-horde-size", 30);
+        int maxSingleHorde = Math.max(0,
+                plugin.getConfig().getInt("apocalypse-settings.max-single-horde-size", 30));
         finalHordeSize = Math.min(finalHordeSize, maxSingleHorde);
 
         // Cap with max-total-zombies instead of scent-system.spawn-cap
@@ -123,7 +125,8 @@ public class HordeManager {
 
         plugin.debugLog("Attempting to spawn horde of size: " + finalHordeSize + " near " + player.getName() + " (Multiplier: " + multiplier + ")");
 
-        int spawnRadius = plugin.getConfig().getInt("apocalypse-settings.spawn-radius", 35);
+        int spawnRadius = Math.max(1,
+                plugin.getConfig().getInt("apocalypse-settings.spawn-radius", 35));
 
         int skipped = 0;
         for (int i = 0; i < finalHordeSize; i++) {

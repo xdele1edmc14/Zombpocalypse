@@ -1,9 +1,9 @@
 package com.deleted.xapocalypse;
 
-import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
@@ -18,8 +18,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class xApocalypseUtils {
 
     private final xApocalypse plugin;
-    private final GriefPrevention griefPrevention;
-    private final boolean griefPreventionEnabled;
 
     public static final NamespacedKey ZOMBIE_TYPE_KEY = new NamespacedKey("xapocalypse", "zombie_type");
     public static final NamespacedKey LAST_HEAL_KEY = new NamespacedKey("xapocalypse", "last_heal");
@@ -46,11 +44,10 @@ public class xApocalypseUtils {
     private double totalWeight = 0.0;
 
     private final Map<UUID, BukkitRunnable> activeBursterFuses = new HashMap<>();
+    private final Map<Block, BlockData> temporaryWebBlocks = new HashMap<>();
 
-    public xApocalypseUtils(xApocalypse plugin, GriefPrevention gp, boolean gpEnabled) {
+    public xApocalypseUtils(xApocalypse plugin) {
         this.plugin = plugin;
-        this.griefPrevention = gp;
-        this.griefPreventionEnabled = gpEnabled;
         loadWeights();
     }
 
@@ -59,11 +56,13 @@ public class xApocalypseUtils {
         totalWeight = 0.0;
         for (ZombieType type : ZombieType.values()) {
             // VETERAN is not spawned randomly (it is transformed from kills, never rolled)
-            if (type == ZombieType.VETERAN) continue;
+            if (type == ZombieType.VETERAN || type == ZombieType.NORMAL) continue;
             // Bug M4 fix: honor per-class enabled flags so disabling a class removes it from the
             // random spawn pool (previously these flags were never read).
             if (!isClassEnabled(type)) continue;
-            double weight = plugin.getConfig().getDouble("zombie-classes.weights." + type.name(), 0.1);
+            double weight = Math.max(0.0,
+                    plugin.getConfig().getDouble("zombie-classes.weights." + type.name(), 0.1));
+            if (weight == 0.0) continue;
             spawnWeights.put(type, weight);
             totalWeight += weight;
         }
@@ -184,6 +183,9 @@ public class xApocalypseUtils {
                 // Fast but fragile
                 double healthMult = plugin.getConfig().getDouble("zombie-classes.runner.health-multiplier", 0.75);
                 double runnerSpeed = plugin.getConfig().getDouble("zombie-classes.runner.speed", 0.38);
+                if (isBloodMoon) {
+                    runnerSpeed *= plugin.getBloodMoon().getSpeedMult();
+                }
                 setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * healthMult);
                 zombie.setHealth(baseHealth * healthMult);
                 setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.9);
@@ -332,6 +334,7 @@ public class xApocalypseUtils {
             case SPITTER -> tickSpitterAI(zombie);
             case SCORCHED -> tickScorchedAI(zombie);
             case PSYCHOPATH -> tickPsychopathAI(zombie);
+            case BURSTER -> tickBursterAI(zombie);
             // SWARMER, RUNNER, TANK, VETERAN have no special AI behaviors
             default -> { /* No special AI for this type */ }
         }
@@ -453,6 +456,12 @@ public class xApocalypseUtils {
         }
     }
 
+    private void tickBursterAI(Zombie burster) {
+        if (burster.getTarget() instanceof Player player) {
+            handleBursterTarget(burster, player);
+        }
+    }
+
     public void transformToVeteran(Zombie zombie) {
         // Single source of truth for the toggle: the same key the listener gates on
         // (zombie-classes.veteran.permanent). Previously this re-checked a separate "persist" key,
@@ -508,9 +517,7 @@ public class xApocalypseUtils {
     }
 
     public boolean isInsideClaim(Location loc) {
-        if (!griefPreventionEnabled) return false;
-        if (!plugin.getConfig().getBoolean("hooks.griefprevention.prevent-spawning-in-claims", true)) return false;
-        return griefPrevention.dataStore.getClaimAt(loc, false, null) != null;
+        return plugin.isInsideClaim(loc);
     }
 
     public void handleAcidHit(Entity e) {
@@ -531,7 +538,8 @@ public class xApocalypseUtils {
         // Cooldown: once every 7 seconds per zombie
         if (lastWeb != null && (now - lastWeb) < 7000) return;
 
-         int webCount = plugin.getConfig().getInt("zombie-classes.webber.web_count", 3);
+         int webCount = Math.max(0,
+                 plugin.getConfig().getInt("zombie-classes.webber.web_count", 3));
          // Prefer seconds-based config key for readability (fallback to old ticks-based key)
          long cleanupDelayTicks;
          if (plugin.getConfig().contains("zombie-classes.webber.cleanup_delay_seconds")) {
@@ -539,7 +547,8 @@ public class xApocalypseUtils {
              cleanupDelayTicks = Math.max(1L, seconds) * 20L;
          } else {
              // Backwards compatible: default to ~5 seconds if old key missing
-             cleanupDelayTicks = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 100L);
+             cleanupDelayTicks = Math.max(1L,
+                     plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 100L));
          }
 
          Block baseBlock = victim.getLocation().getBlock();
@@ -551,8 +560,9 @@ public class xApocalypseUtils {
              int dx = ThreadLocalRandom.current().nextInt(-1, 2);
              int dz = ThreadLocalRandom.current().nextInt(-1, 2);
              Block block = baseBlock.getRelative(dx, 0, dz);
-             if (block.getType() == Material.AIR) {
-                 block.setType(Material.COBWEB);
+             if (block.getType() == Material.AIR && !plugin.isInsideClaim(block.getLocation())) {
+                 temporaryWebBlocks.put(block, block.getBlockData().clone());
+                 block.setType(Material.COBWEB, false);
                  placed.add(block);
              }
              attempts++;
@@ -561,9 +571,7 @@ public class xApocalypseUtils {
          List<Block> webBlocks = new ArrayList<>(placed);
          Bukkit.getScheduler().runTaskLater(plugin, () -> {
              for (Block block : webBlocks) {
-                 if (block.getType() == Material.COBWEB) {
-                     block.setType(Material.AIR);
-                 }
+                 restoreTemporaryWeb(block);
              }
          }, cleanupDelayTicks);
 
@@ -573,18 +581,15 @@ public class xApocalypseUtils {
     // === BURSTER EVENT HANDLERS ===
     
     public void handleBursterTarget(Zombie burster, Player target) {
-        double radius = plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0);
+        if (!burster.getWorld().equals(target.getWorld())) return;
+        double radius = Math.max(0.0, plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0));
         if (burster.getLocation().distanceSquared(target.getLocation()) > radius * radius) return;
 
         UUID id = burster.getUniqueId();
         if (activeBursterFuses.containsKey(id)) return;
-        if (burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.BYTE)
-                || burster.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.LONG)) {
-            return;
-        }
 
-        int fuseTicks = plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30);
-        float power = (float) plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0);
+        int fuseTicks = Math.max(1, plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30));
+        float power = (float) Math.max(0.0, plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0));
         // Bug M1 fix: honor zombie-classes.burster.break_blocks (the explosion was hardcoded to never
         // break terrain). Read here so it's effectively final for the fuse runnable below.
         boolean breakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
@@ -630,6 +635,45 @@ public class xApocalypseUtils {
         BukkitRunnable fuse = activeBursterFuses.remove(id);
         if (fuse != null) {
             fuse.cancel();
+        }
+        if (burster.isValid() && !burster.isDead()) {
+            burster.setGlowing(false);
+        }
+        burster.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
+    }
+
+    public void forgetTemporaryWeb(Block block) {
+        temporaryWebBlocks.remove(block);
+    }
+
+    private void restoreTemporaryWeb(Block block) {
+        BlockData original = temporaryWebBlocks.remove(block);
+        if (original != null && block.getType() == Material.COBWEB) {
+            block.setBlockData(original, false);
+        }
+    }
+
+    public void cleanupTransientEffects() {
+        for (BukkitRunnable fuse : new ArrayList<>(activeBursterFuses.values())) {
+            fuse.cancel();
+        }
+        activeBursterFuses.clear();
+
+        for (World world : Bukkit.getWorlds()) {
+            for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                String type = zombie.getPersistentDataContainer().get(
+                        ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
+                if (ZombieType.BURSTER.name().equals(type)
+                        || zombie.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.BYTE)
+                        || zombie.getPersistentDataContainer().has(BURSTER_PRIMED_KEY, PersistentDataType.LONG)) {
+                    zombie.setGlowing(false);
+                    zombie.getPersistentDataContainer().remove(BURSTER_PRIMED_KEY);
+                }
+            }
+        }
+
+        for (Block block : new ArrayList<>(temporaryWebBlocks.keySet())) {
+            restoreTemporaryWeb(block);
         }
     }
 

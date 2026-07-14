@@ -68,8 +68,9 @@ public class HordeSpawnerTask extends BukkitRunnable {
                 long playerWorldTime = pw.getTime();
                 boolean isDayHordeSpawn = playerWorldTime >= 0 && playerWorldTime < 13000;
                 if (isDayHordeSpawn) {
-                    double daySpawnChance = plugin.getConfig().getDouble(
-                            "apocalypse-settings.day-spawn-chance", 0.0);
+                    double daySpawnChance = Math.max(0.0, Math.min(1.0,
+                            plugin.getConfig().getDouble(
+                                    "apocalypse-settings.day-spawn-chance", 0.0)));
                     if (ThreadLocalRandom.current().nextDouble() >= daySpawnChance) continue;
                 }
                 plugin.debugLog("Spawn eligible: " + player.getName() + " in world '" + pw.getName() + "' — spawning horde.");

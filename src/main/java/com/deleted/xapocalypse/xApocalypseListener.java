@@ -4,6 +4,8 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.player.*;
@@ -41,28 +43,18 @@ public class xApocalypseListener implements Listener {
 
     // === SCENT EVENTS ===
 
-    @EventHandler
-    public void onPlayerToggleSprint(PlayerToggleSprintEvent event) {
-        scent.onToggleSprint(event.getPlayer(), event.isSprinting());
-    }
-
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         scent.onMove(event.getPlayer());
     }
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
-        // Grant Mutant rewards BEFORE notifyEntityDeath clears the tracking slot below.
         UUID deadId = event.getEntity().getUniqueId();
         MythicMobsManager mythicManager = plugin.getMythicMobsManager();
         boolean isMythicEntity = mythicManager.isMythicMob(event.getEntity());
         boolean isMutant = mythicManager.isTrackedMutant(deadId)
                 || mythicManager.isConfiguredMutant(event.getEntity());
-        if (isMutant) {
-            plugin.getDropManager().applyMutantRewards(event, event.getEntity().getKiller());
-        }
-
         // Free a MythicMobs Mutant cap slot the moment any entity dies (cheap no-op for non-mutants).
         // Closes the cap-leak where a killed Mutant whose chunk unloaded before pruning kept its slot
         // forever, eventually filling max-global-cap with ghosts and silently stopping all spawns.
@@ -203,27 +195,31 @@ public class xApocalypseListener implements Listener {
 
     @EventHandler
     public void onEntityTarget(EntityTargetLivingEntityEvent event) {
-        EntityType entityType = event.getEntity().getType();
-
-        if ((entityType == EntityType.ZOMBIE || entityType == EntityType.ZOMBIE_VILLAGER)
+        if (event.getEntity() instanceof Zombie zombie
                 && event.getTarget() instanceof Player player) {
 
             if (plugin.isZombieGutsEnabled() && immunity.isImmune(player.getUniqueId())) {
                 event.setCancelled(true);
-                if (event.getEntity() instanceof Zombie zombie) {
-                    zombie.setTarget(null);
-                }
+                zombie.setTarget(null);
                 return;
             }
 
             // Handle BURSTER target event
-            if (event.getEntity() instanceof Zombie zombie) {
-                xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
-                if (type == xApocalypseUtils.ZombieType.BURSTER) {
-                    utils.handleBursterTarget(zombie, player);
-                }
+            xApocalypseUtils.ZombieType type = utils.getZombieType(zombie);
+            if (type == xApocalypseUtils.ZombieType.BURSTER) {
+                utils.handleBursterTarget(zombie, player);
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onTemporaryWebBreak(BlockBreakEvent event) {
+        utils.forgetTemporaryWeb(event.getBlock());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onTemporaryWebPlace(BlockPlaceEvent event) {
+        utils.forgetTemporaryWeb(event.getBlock());
     }
 
     @EventHandler

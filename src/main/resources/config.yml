@@ -1,4 +1,4 @@
-# xApocalypse v1.4.1 - Balanced Configuration
+# xApocalypse v1.4.2 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -272,27 +272,3 @@ mythicmobs:
     spawn-radius:
       min: 20   # Minimum blocks from player
       max: 40   # Maximum blocks from player
-
-    # Rewards granted when a tracked Mutant is killed — works exactly like the zombie
-    # custom-drops / kill-commands above, but only fires for Mutants. %player% is replaced
-    # with the killer's name; item drops and %player% commands/broadcasts require a player kill.
-    rewards:
-      enabled: false
-      require-player-kill: true
-      # Extra items added to the Mutant's death drops.
-      drops:
-        - material: DIAMOND
-          amount: 1-3
-          chance: 1.0
-        - material: NETHERITE_SCRAP
-          amount: 1
-          chance: 0.25
-      # Console commands run on a Mutant kill.
-      commands:
-        - command: "eco give %player% 100"
-          chance: 1.0
-      # Optional server-wide broadcast on a Mutant kill.
-      broadcast:
-        enabled: true
-        chance: 1.0
-        message: "&4&l☠ &c%player% &7has slain a &4Mutant&7!"

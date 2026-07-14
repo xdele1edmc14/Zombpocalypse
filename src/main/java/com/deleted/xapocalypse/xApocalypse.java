@@ -93,7 +93,7 @@ public class xApocalypse extends JavaPlugin {
         setupHooks();
 
         // --- Utils / Spawner Setup ---
-        utils = new xApocalypseUtils(this, griefPrevention, griefPreventionEnabled);
+        utils = new xApocalypseUtils(this);
         undeadSpawner = new UndeadSpawner(this, utils);
         horde = new HordeManager(this, utils, undeadSpawner);
         scent = new ScentManager(this);
@@ -188,6 +188,10 @@ public class xApocalypse extends JavaPlugin {
             undeadSpawner.finalizeAllAnimations();
         }
 
+        if (utils != null) {
+            utils.cleanupTransientEffects();
+        }
+
         Bukkit.getScheduler().cancelTasks(this);
     }
 
@@ -196,7 +200,7 @@ public class xApocalypse extends JavaPlugin {
     // ==================================================================================
 
     private void startSpawnerTask() {
-        long rate = getConfig().getLong("apocalypse-settings.spawn-rate", 1200L);
+        long rate = Math.max(1L, getConfig().getLong("apocalypse-settings.spawn-rate", 1200L));
         Bukkit.getScheduler().cancelTasks(this);
 
         immunity.startBossBarTask();
@@ -210,18 +214,20 @@ public class xApocalypse extends JavaPlugin {
 
     /** Full reload pipeline shared by /xa reload. Mirrors the original onCommand("reload") sequence. */
     public void reloadAll() {
-        Bukkit.getScheduler().cancelTasks(this);
-        // Bug C2 fix: cancelTasks above killed any in-flight rise-animation timers without finalizing
-        // them; restore those zombies now so the reload can't strand invulnerable, AI-less zombies.
+        if (utils != null) {
+            utils.cleanupTransientEffects();
+        }
         if (undeadSpawner != null) {
             undeadSpawner.finalizeAllAnimations();
         }
+        Bukkit.getScheduler().cancelTasks(this);
         // Regenerate config.yml if it was deleted, and pull in any new keys from the jar BEFORE we
         // reload it into memory — so "delete config + /xa reload" rebuilds a complete file, and an
         // admin who hand-deletes individual keys gets them restored on reload too.
         synchronizeConfig();
         reloadConfig();
         loadConfigValues();
+        setupHooks();
         messageManager.reload();
         utils.reloadWeights();
         if (dropManager != null) {
@@ -309,7 +315,13 @@ public class xApocalypse extends JavaPlugin {
         // each new key's comments. getKeys(true) yields deep dotted paths; setting a deep leaf path
         // auto-creates its parent sections.
         boolean changed = false;
+        boolean removedBossRewards = false;
         Set<String> addedRoots = new HashSet<>();
+        if (current.contains("mythicmobs.integration.rewards")) {
+            current.set("mythicmobs.integration.rewards", null);
+            changed = true;
+            removedBossRewards = true;
+        }
         for (String path : defaults.getKeys(true)) {
             if (current.contains(path)) {
                 continue;
@@ -341,7 +353,12 @@ public class xApocalypse extends JavaPlugin {
 
         try {
             current.save(configFile);
-            getLogger().info("config.yml updated with new default keys: " + String.join(", ", addedRoots));
+            if (!addedRoots.isEmpty()) {
+                getLogger().info("config.yml updated with new default keys: " + String.join(", ", addedRoots));
+            }
+            if (removedBossRewards) {
+                getLogger().info("Removed deprecated xApocalypse boss rewards; MythicMobs now owns boss drops.");
+            }
         } catch (IOException e) {
             getLogger().warning("Failed to write merged config.yml: " + e.getMessage());
         }
@@ -366,6 +383,8 @@ public class xApocalypse extends JavaPlugin {
     }
 
     private void setupHooks() {
+        griefPreventionEnabled = false;
+        griefPrevention = null;
         if (getConfig().getBoolean("hooks.griefprevention.enabled")) {
             Plugin gp = getServer().getPluginManager().getPlugin("GriefPrevention");
             if (gp instanceof GriefPrevention) {
@@ -400,6 +419,7 @@ public class xApocalypse extends JavaPlugin {
     }
 
     public boolean isInsideClaim(Location loc) {
+        if (!getConfig().getBoolean("hooks.griefprevention.enabled")) return false;
         if (!griefPreventionEnabled) return false;
         if (!getConfig().getBoolean("hooks.griefprevention.prevent-spawning-in-claims")) return false;
 

@@ -23,7 +23,6 @@ public class ScentManager {
     private final xApocalypse plugin;
 
     private final Map<UUID, Double> playerScent = new HashMap<>();
-    private final Map<UUID, Boolean> playerSprinting = new HashMap<>();
     private final Map<UUID, Long> lastJumpTime = new HashMap<>();
     // Bug C4 fix: previous-tick ground state so onMove can detect the on-ground -> airborne jump edge
     private final Map<UUID, Boolean> playerWasOnGround = new HashMap<>();
@@ -41,17 +40,22 @@ public class ScentManager {
     }
 
     public void startTasks() {
+        if (scentDecayTask != null && !scentDecayTask.isCancelled()) scentDecayTask.cancel();
+        if (scentSprintTask != null && !scentSprintTask.isCancelled()) scentSprintTask.cancel();
+        scentDecayTask = null;
+        scentSprintTask = null;
+
         scentEnabled = plugin.getConfig().getBoolean("scent-system.enabled", true);
-        maxScent = plugin.getConfig().getDouble("scent-system.max-scent", 100.0);
+        maxScent = Math.max(0.0, plugin.getConfig().getDouble("scent-system.max-scent", 100.0));
+        playerScent.replaceAll((uuid, scent) -> Math.max(0.0, Math.min(scent, maxScent)));
+        playerScent.entrySet().removeIf(entry -> entry.getValue() <= 0.0);
 
         if (!scentEnabled) return;
 
-        // Cancel existing tasks on reload to prevent stacking
-        if (scentDecayTask != null && !scentDecayTask.isCancelled()) scentDecayTask.cancel();
-        if (scentSprintTask != null && !scentSprintTask.isCancelled()) scentSprintTask.cancel();
-
-        int intervalSeconds = plugin.getConfig().getInt("scent-system.decay-interval-seconds", 5);
-        double decayAmount = plugin.getConfig().getDouble("scent-system.decay-amount", 1.0);
+        int intervalSeconds = Math.max(1,
+                plugin.getConfig().getInt("scent-system.decay-interval-seconds", 5));
+        double decayAmount = Math.max(0.0,
+                plugin.getConfig().getDouble("scent-system.decay-amount", 1.0));
 
         scentDecayTask = new BukkitRunnable() {
             @Override
@@ -68,15 +72,15 @@ public class ScentManager {
             }
         }.runTaskTimer(plugin, 0L, intervalSeconds * 20L);
 
-        // Continuous sprint scent: fires every 20 ticks (1 second) while player is sprinting.
-        // The toggle event only catches start/stop — this ensures scent actually builds while running.
-        double sprintAdd = plugin.getConfig().getDouble("scent-system.sprint-add", 2.0);
+        // Continuous sprint scent: fires every 20 ticks (1 second) using the player's live state.
+        double sprintAdd = Math.max(0.0,
+                plugin.getConfig().getDouble("scent-system.sprint-add", 2.0));
         scentSprintTask = new BukkitRunnable() {
             @Override
             public void run() {
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (!plugin.isWorldEnabled(p.getWorld())) continue;
-                    if (playerSprinting.getOrDefault(p.getUniqueId(), false)) {
+                    if (!isScentWorld(p)) continue;
+                    if (p.isSprinting()) {
                         addScent(p.getUniqueId(), sprintAdd);
                     }
                 }
@@ -89,6 +93,7 @@ public class ScentManager {
     }
 
     public void addScent(UUID uuid, double amount) {
+        if (!scentEnabled || amount <= 0.0 || maxScent <= 0.0) return;
         double current = playerScent.getOrDefault(uuid, 0.0);
         double newScent = Math.min(current + amount, maxScent);
         playerScent.put(uuid, newScent);
@@ -97,17 +102,12 @@ public class ScentManager {
 
     // === EVENT HOOKS (called by xApocalypseListener) ===
 
-    public void onToggleSprint(Player player, boolean sprinting) {
-        if (!scentEnabled) return;
-        // Just track sprint state — scent is added continuously by scentSprintTask, not here.
-        // Adding scent on toggle meant only one burst per sprint session regardless of duration.
-        playerSprinting.put(player.getUniqueId(), sprinting);
-    }
-
     public void onMove(Player player) {
-        if (!scentEnabled) return;
-
         UUID uuid = player.getUniqueId();
+        if (!scentEnabled || !isScentWorld(player)) {
+            playerWasOnGround.remove(uuid);
+            return;
+        }
 
         // Jump detection: a jump is the transition from on-ground (last tick) to airborne
         // (this tick) with upward velocity. Bug C4 fix: the old guard `if (!player.isOnGround())
@@ -126,7 +126,8 @@ public class ScentManager {
 
         double velocityY = player.getVelocity().getY();
         if (velocityY > 0.3) {
-            double jumpAdd = plugin.getConfig().getDouble("scent-system.jump-add", 0.5);
+            double jumpAdd = Math.max(0.0,
+                    plugin.getConfig().getDouble("scent-system.jump-add", 0.5));
             addScent(uuid, jumpAdd);
             lastJumpTime.put(uuid, currentTime);
             plugin.debugLog("Player " + player.getName() + " jumped, added " + jumpAdd + " scent");
@@ -134,13 +135,18 @@ public class ScentManager {
     }
 
     public void onKill(Player killer) {
-        double killAdd = plugin.getConfig().getDouble("scent-system.kill-add", 1.0);
+        if (!scentEnabled || !isScentWorld(killer)) return;
+        double killAdd = Math.max(0.0,
+                plugin.getConfig().getDouble("scent-system.kill-add", 1.0));
         addScent(killer.getUniqueId(), killAdd);
     }
 
     public void onPlayerQuit(UUID uuid) {
-        playerSprinting.remove(uuid);
         lastJumpTime.remove(uuid);
         playerWasOnGround.remove(uuid);
+    }
+
+    private boolean isScentWorld(Player player) {
+        return plugin.isWorldEnabled(player.getWorld()) || plugin.isLobbyWorld(player.getWorld());
     }
 }
