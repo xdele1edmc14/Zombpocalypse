@@ -142,6 +142,7 @@ public class ScentManager {
     }
 
     public void onPlayerQuit(UUID uuid) {
+        playerScent.remove(uuid);
         lastJumpTime.remove(uuid);
         playerWasOnGround.remove(uuid);
     }

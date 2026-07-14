@@ -46,9 +46,34 @@ public class xApocalypseUtils {
     private final Map<UUID, BukkitRunnable> activeBursterFuses = new HashMap<>();
     private final Map<Block, BlockData> temporaryWebBlocks = new HashMap<>();
 
+    // Frequently used class behavior settings, refreshed on enable and /xa reload.
+    private long nurseIntervalMs;
+    private double nurseRadius;
+    private double nurseHealAmount;
+    private int nurseMaxTargets;
+    private long minerBreakDelayMs;
+    private Set<Material> minerBreakables = EnumSet.noneOf(Material.class);
+    private boolean minerDropItems;
+    private long spitterCooldownMs;
+    private int spitterPoisonDurationTicks;
+    private int spitterPoisonAmplifier;
+    private long psychopathRageCooldownMs;
+    private int psychopathBleedDurationTicks;
+    private boolean veteranPermanent;
+    private int webberWebCount;
+    private long webberCleanupDelayTicks;
+    private double bursterRadiusSquared;
+    private int bursterFuseTicks;
+    private float bursterPower;
+    private boolean bursterBreakBlocks;
+    private int frostDurationTicks;
+    private int frostAmplifier;
+    private int scorchedFireTicks;
+
     public xApocalypseUtils(xApocalypse plugin) {
         this.plugin = plugin;
         loadWeights();
+        loadBehaviorConfig();
     }
 
     private void loadWeights() {
@@ -80,7 +105,70 @@ public class xApocalypseUtils {
         return key == null || plugin.getConfig().getBoolean(key, true);
     }
 
-    public void reloadWeights() { loadWeights(); }
+    public void reloadWeights() {
+        loadWeights();
+        loadBehaviorConfig();
+    }
+
+    private void loadBehaviorConfig() {
+        nurseIntervalMs = Math.max(0L,
+                plugin.getConfig().getLong("zombie-classes.nurse.interval-seconds", 3L)) * 1000L;
+        nurseRadius = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.nurse.heal-radius", 5.0));
+        nurseHealAmount = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.nurse.heal-amount-hp", 3.0));
+        nurseMaxTargets = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.nurse.max-targets-per-tick", 5));
+
+        minerBreakDelayMs = Math.max(0L,
+                plugin.getConfig().getLong("zombie-classes.miner.break-delay-ticks", 30L)) * 50L;
+        EnumSet<Material> parsedBreakables = EnumSet.noneOf(Material.class);
+        for (String name : plugin.getConfig().getStringList("zombie-classes.miner.breakables")) {
+            Material material = Material.matchMaterial(name);
+            if (material != null) parsedBreakables.add(material);
+        }
+        minerBreakables = parsedBreakables;
+        minerDropItems = plugin.getConfig().getBoolean("zombie-classes.miner.drop-items", true);
+
+        spitterCooldownMs = Math.max(0L,
+                plugin.getConfig().getLong("zombie-classes.spitter.projectile-cooldown-seconds", 6L)) * 1000L;
+        spitterPoisonDurationTicks = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.spitter.poison-duration-seconds", 8)) * 20;
+        spitterPoisonAmplifier = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.spitter.poison-level", 2) - 1);
+
+        psychopathRageCooldownMs = Math.max(0L,
+                plugin.getConfig().getLong("zombie-classes.psychopath.rage-cooldown-seconds", 25L)) * 1000L;
+        psychopathBleedDurationTicks = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.psychopath.bleed-duration-seconds", 3)) * 20;
+        veteranPermanent = plugin.getConfig().getBoolean("zombie-classes.veteran.permanent", true);
+
+        webberWebCount = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.webber.web_count", 3));
+        if (plugin.getConfig().contains("zombie-classes.webber.cleanup_delay_seconds")) {
+            webberCleanupDelayTicks = Math.max(1L,
+                    plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay_seconds", 5L)) * 20L;
+        } else {
+            webberCleanupDelayTicks = Math.max(1L,
+                    plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 100L));
+        }
+
+        double bursterRadius = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0));
+        bursterRadiusSquared = bursterRadius * bursterRadius;
+        bursterFuseTicks = Math.max(1,
+                plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30));
+        bursterPower = (float) Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0));
+        bursterBreakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
+
+        frostDurationTicks = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.frost.duration_ticks", 100));
+        frostAmplifier = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2) - 1);
+        scorchedFireTicks = Math.max(0,
+                plugin.getConfig().getInt("zombie-classes.scorched.fire-duration-seconds", 4)) * 20;
+    }
 
     public void assignZombieType(Zombie zombie) {
         if (!plugin.getConfig().getBoolean("zombie-classes.enabled", true)) return;
@@ -97,7 +185,7 @@ public class xApocalypseUtils {
             // Bug 14 fix: strict < instead of <= eliminates last-entry boundary bias
             if (random < cumulative) return entry.getKey();
         }
-        // Floating-point edge case fallback — return last entry rather than a hardcoded type
+        // Floating-point edge case fallback — return an available entry rather than a hardcoded type.
         return spawnWeights.entrySet().iterator().next().getKey();
     }
 
@@ -161,20 +249,20 @@ public class xApocalypseUtils {
         switch (type) {
             case NORMAL -> {
                 // Basic vanilla zombie - no special effects
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 
                 // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
                 // NORMAL zombies don't get fire immunity (they can burn normally)
             }
             case SWARMER -> {
                 // Basic zombie - standard stats
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 
                 // CRITICAL FIX: Add permanent fire resistance to all custom zombie types
                 zombie.addPotionEffect(new PotionEffect(PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 0, false, false));
@@ -186,10 +274,10 @@ public class xApocalypseUtils {
                 if (isBloodMoon) {
                     runnerSpeed *= plugin.getBloodMoon().getSpeedMult();
                 }
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * healthMult);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth * healthMult);
                 zombie.setHealth(baseHealth * healthMult);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.9);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, runnerSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage * 0.9);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, runnerSpeed);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case TANK -> {
@@ -199,44 +287,44 @@ public class xApocalypseUtils {
                 if (isBloodMoon) {
                     tankHealth *= plugin.getBloodMoon().getHealthMult();
                 }
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, tankHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, tankHealth);
                 zombie.setHealth(tankHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 1.2);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.85);
-                setZombieStat(zombie, Attribute.GENERIC_KNOCKBACK_RESISTANCE, knockbackResist);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage * 1.2);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed * 0.85);
+                setZombieStat(zombie, AttributeResolver.KNOCKBACK_RESISTANCE, knockbackResist);
                 zombie.getEquipment().setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case MINER -> {
                 // Standard stats, focused on block breaking
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case NURSE -> {
                 // Support zombie - lower damage, standard HP
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.7);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage * 0.7);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case SPITTER -> {
                 // Ranged attacker - lower HP, standard speed
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.85);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth * 0.85);
                 zombie.setHealth(baseHealth * 0.85);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.8);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage * 0.8);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case SCORCHED -> {
                 // Fire zombie - standard stats with fire aura
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 
                 // CRITICAL FIX: Proper fire immunity for scorched zombies
                 zombie.setFireTicks(Integer.MAX_VALUE); // Immune to fire
@@ -248,50 +336,49 @@ public class xApocalypseUtils {
                 double attackBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.attack-bonus", 2.0);
                 // Bug M1 fix: honor zombie-classes.psychopath.speed-bonus (was never applied).
                 double speedBonus = plugin.getConfig().getDouble("zombie-classes.psychopath.speed-bonus", 0.08);
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed + speedBonus);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed + speedBonus);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case VETERAN -> {
                 // Elite zombie - transformed from kills
                 double attackBonus = plugin.getConfig().getDouble("zombie-classes.veteran.attack-bonus", 4.0);
                 double healthAdd = plugin.getConfig().getDouble("zombie-classes.veteran.add-health", 0.0);
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth + healthAdd);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth + healthAdd);
                 zombie.setHealth(baseHealth + healthAdd);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage + attackBonus);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 1.1);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage + attackBonus);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed * 1.1);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case WEBBER -> {
                 // Webber - places cobwebs on hit, holds string in off-hand
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 zombie.getEquipment().setItemInOffHand(new ItemStack(Material.STRING));
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case BURSTER -> {
                 // Burster - explodes when close, lower HP
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth * 0.8);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth * 0.8);
                 zombie.setHealth(baseHealth * 0.8);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage * 0.5);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed * 0.6);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage * 0.5);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed * 0.6);
                 applyFireResistance(zombie); // Bug 15 fix
             }
             case FROST -> {
                 // Frost - slows targets on hit, wears aqua chestplate
-                setZombieStat(zombie, Attribute.GENERIC_MAX_HEALTH, baseHealth);
+                setZombieStat(zombie, AttributeResolver.MAX_HEALTH, baseHealth);
                 zombie.setHealth(baseHealth);
-                setZombieStat(zombie, Attribute.GENERIC_ATTACK_DAMAGE, baseDamage);
-                setZombieStat(zombie, Attribute.GENERIC_MOVEMENT_SPEED, baseSpeed);
+                setZombieStat(zombie, AttributeResolver.ATTACK_DAMAGE, baseDamage);
+                setZombieStat(zombie, AttributeResolver.MOVEMENT_SPEED, baseSpeed);
                 applyFireResistance(zombie); // Bug 15 fix
                 
                 // CRITICAL FIX: Only frost zombies get blue leather chestplate
                 ItemStack chestplate = new ItemStack(Material.LEATHER_CHESTPLATE);
-                chestplate.getItemMeta();
                 if (chestplate.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
                     meta.setColor(org.bukkit.Color.AQUA);
                     chestplate.setItemMeta(meta);
@@ -302,7 +389,8 @@ public class xApocalypseUtils {
     }
 
     private void setZombieStat(Zombie zombie, Attribute attribute, double value) {
-        if (zombie.getAttribute(attribute) != null) zombie.getAttribute(attribute).setBaseValue(value);
+        var instance = zombie.getAttribute(attribute);
+        if (instance != null) instance.setBaseValue(value);
     }
 
     // Bug 15 fix: centralised helper so every non-NORMAL type gets fire resistance
@@ -314,7 +402,13 @@ public class xApocalypseUtils {
 
     public ZombieType getZombieType(Zombie zombie) {
         String s = zombie.getPersistentDataContainer().get(ZOMBIE_TYPE_KEY, PersistentDataType.STRING);
-        return s == null ? null : ZombieType.valueOf(s);
+        if (s == null) return null;
+        try {
+            return ZombieType.valueOf(s);
+        } catch (IllegalArgumentException ignored) {
+            zombie.getPersistentDataContainer().remove(ZOMBIE_TYPE_KEY);
+            return null;
+        }
     }
 
     /** True only for zombies whose class/stats are owned by xApocalypse. */
@@ -344,20 +438,17 @@ public class xApocalypseUtils {
         long now = System.currentTimeMillis();
         // Bug M1 fix: honor the configured heal interval/radius/amount/target-cap (these keys were
         // previously ignored — the values below were all hardcoded).
-        long intervalMs = plugin.getConfig().getInt("zombie-classes.nurse.interval-seconds", 3) * 1000L;
         Long lastHeal = nurse.getPersistentDataContainer().get(LAST_HEAL_KEY, PersistentDataType.LONG);
-        if (lastHeal != null && (now - lastHeal) < intervalMs) return;
-
-        double radius = plugin.getConfig().getDouble("zombie-classes.nurse.heal-radius", 5.0);
-        double healAmount = plugin.getConfig().getDouble("zombie-classes.nurse.heal-amount-hp", 3.0);
-        int maxTargets = plugin.getConfig().getInt("zombie-classes.nurse.max-targets-per-tick", 5);
+        if (lastHeal != null && (now - lastHeal) < nurseIntervalMs) return;
 
         boolean healed = false;
         int healedCount = 0;
-        for (Entity e : nurse.getNearbyEntities(radius, radius, radius)) {
-            if (healedCount >= maxTargets) break;
-            if (e instanceof Zombie z && z.getHealth() < z.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()) {
-                z.setHealth(Math.min(z.getHealth() + healAmount, z.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
+        for (Entity e : nurse.getNearbyEntities(nurseRadius, nurseRadius, nurseRadius)) {
+            if (healedCount >= nurseMaxTargets) break;
+            if (e instanceof Zombie z) {
+                var maxHealth = z.getAttribute(AttributeResolver.MAX_HEALTH);
+                if (maxHealth == null || z.getHealth() >= maxHealth.getValue()) continue;
+                z.setHealth(Math.min(z.getHealth() + nurseHealAmount, maxHealth.getValue()));
                 z.getWorld().spawnParticle(Particle.HEART, z.getLocation().add(0, 1.5, 0), 5, 0.2, 0.2, 0.2, 0.1);
                 healed = true;
                 healedCount++;
@@ -375,9 +466,7 @@ public class xApocalypseUtils {
 
         long now = System.currentTimeMillis();
         Long lastBreak = miner.getPersistentDataContainer().get(LAST_BREAK_KEY, PersistentDataType.LONG);
-        int delay = plugin.getConfig().getInt("zombie-classes.miner.break-delay-ticks", 30) * 50;
-
-        if (lastBreak != null && (now - lastBreak) < delay) return;
+        if (lastBreak != null && (now - lastBreak) < minerBreakDelayMs) return;
 
         Vector direction = target.getLocation().toVector().subtract(miner.getLocation().toVector()).normalize();
         Block block = miner.getLocation().add(direction).getBlock();
@@ -390,11 +479,10 @@ public class xApocalypseUtils {
 
     private boolean tryBreak(Zombie miner, Block b) {
         if (b.getType() == Material.AIR || b.getType() == Material.BEDROCK) return false;
-        List<String> breakables = plugin.getConfig().getStringList("zombie-classes.miner.breakables");
-        if (!breakables.contains(b.getType().name())) return false;
+        if (!minerBreakables.contains(b.getType())) return false;
         if (isInsideClaim(b.getLocation())) return false;
 
-        if (plugin.getConfig().getBoolean("zombie-classes.miner.drop-items", true)) {
+        if (minerDropItems) {
             b.breakNaturally();
         } else {
             b.setType(Material.AIR);
@@ -406,7 +494,7 @@ public class xApocalypseUtils {
 
     private void tickSpitterAI(Zombie spitter) {
         LivingEntity target = spitter.getTarget();
-        if (target == null) return;
+        if (target == null || !spitter.getWorld().equals(target.getWorld())) return;
 
         double dist = spitter.getLocation().distance(target.getLocation());
         if (dist > 15 || dist < 4) return;
@@ -414,8 +502,7 @@ public class xApocalypseUtils {
         long now = System.currentTimeMillis();
         Long lastSpit = spitter.getPersistentDataContainer().get(LAST_SPIT_KEY, PersistentDataType.LONG);
         // Bug M1 fix: honor zombie-classes.spitter.projectile-cooldown-seconds (was hardcoded 4 s).
-        long cooldownMs = plugin.getConfig().getInt("zombie-classes.spitter.projectile-cooldown-seconds", 6) * 1000L;
-        if (lastSpit != null && (now - lastSpit) < cooldownMs) return;
+        if (lastSpit != null && (now - lastSpit) < spitterCooldownMs) return;
 
         spitter.getPersistentDataContainer().set(LAST_SPIT_KEY, PersistentDataType.LONG, now);
         Vector velocity = target.getLocation().add(0, 1, 0).toVector().subtract(spitter.getEyeLocation().toVector()).normalize().multiply(1.2);
@@ -441,12 +528,12 @@ public class xApocalypseUtils {
     }
 
     private void tickPsychopathAI(Zombie psycho) {
-        if (psycho.getHealth() < psycho.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue() * 0.5) {
+        var maxHealth = psycho.getAttribute(AttributeResolver.MAX_HEALTH);
+        if (maxHealth != null && psycho.getHealth() < maxHealth.getValue() * 0.5) {
             long now = System.currentTimeMillis();
             Long lastRage = psycho.getPersistentDataContainer().get(LAST_RAGE_KEY, PersistentDataType.LONG);
             // Bug M1 fix: honor zombie-classes.psychopath.rage-cooldown-seconds (was hardcoded 10 s).
-            long rageCooldownMs = plugin.getConfig().getInt("zombie-classes.psychopath.rage-cooldown-seconds", 25) * 1000L;
-            if (lastRage == null || (now - lastRage) > rageCooldownMs) {
+            if (lastRage == null || (now - lastRage) > psychopathRageCooldownMs) {
                 psycho.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 100, 1));
                 psycho.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 100, 1));
                 psycho.getWorld().playSound(psycho.getLocation(), Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 1.5f);
@@ -466,7 +553,7 @@ public class xApocalypseUtils {
         // Single source of truth for the toggle: the same key the listener gates on
         // (zombie-classes.veteran.permanent). Previously this re-checked a separate "persist" key,
         // so disabling one but not the other produced confusing half-on behavior.
-        if (!plugin.getConfig().getBoolean("zombie-classes.veteran.permanent", true)) return;
+        if (!veteranPermanent) return;
         applyZombieType(zombie, ZombieType.VETERAN);
     }
 
@@ -522,9 +609,10 @@ public class xApocalypseUtils {
 
     public void handleAcidHit(Entity e) {
         if (!(e instanceof LivingEntity l)) return;
-        int duration = plugin.getConfig().getInt("zombie-classes.spitter.poison-duration-seconds", 8);
-        int level = plugin.getConfig().getInt("zombie-classes.spitter.poison-level", 2);
-        l.addPotionEffect(new PotionEffect(PotionEffectType.POISON, duration * 20, level - 1));
+        if (spitterPoisonDurationTicks > 0) {
+            l.addPotionEffect(new PotionEffect(PotionEffectType.POISON,
+                    spitterPoisonDurationTicks, spitterPoisonAmplifier));
+        }
         l.getWorld().spawnParticle(Particle.ITEM_SLIME, l.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.1);
         l.getWorld().playSound(l.getLocation(), Sound.ENTITY_GENERIC_SPLASH, 1.0f, 1.0f);
     }
@@ -538,25 +626,12 @@ public class xApocalypseUtils {
         // Cooldown: once every 7 seconds per zombie
         if (lastWeb != null && (now - lastWeb) < 7000) return;
 
-         int webCount = Math.max(0,
-                 plugin.getConfig().getInt("zombie-classes.webber.web_count", 3));
-         // Prefer seconds-based config key for readability (fallback to old ticks-based key)
-         long cleanupDelayTicks;
-         if (plugin.getConfig().contains("zombie-classes.webber.cleanup_delay_seconds")) {
-             long seconds = plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay_seconds", 5L);
-             cleanupDelayTicks = Math.max(1L, seconds) * 20L;
-         } else {
-             // Backwards compatible: default to ~5 seconds if old key missing
-             cleanupDelayTicks = Math.max(1L,
-                     plugin.getConfig().getLong("zombie-classes.webber.cleanup_delay", 100L));
-         }
-
          Block baseBlock = victim.getLocation().getBlock();
          Set<Block> placed = new HashSet<>();
-         int maxAttempts = Math.max(1, webCount) * 10;
+         int maxAttempts = Math.max(1, webberWebCount) * 10;
          int attempts = 0;
 
-         while (placed.size() < webCount && attempts < maxAttempts) {
+         while (placed.size() < webberWebCount && attempts < maxAttempts) {
              int dx = ThreadLocalRandom.current().nextInt(-1, 2);
              int dz = ThreadLocalRandom.current().nextInt(-1, 2);
              Block block = baseBlock.getRelative(dx, 0, dz);
@@ -573,7 +648,7 @@ public class xApocalypseUtils {
              for (Block block : webBlocks) {
                  restoreTemporaryWeb(block);
              }
-         }, cleanupDelayTicks);
+         }, webberCleanupDelayTicks);
 
         webber.getPersistentDataContainer().set(LAST_WEB_KEY, PersistentDataType.LONG, now);
     }
@@ -582,18 +657,11 @@ public class xApocalypseUtils {
     
     public void handleBursterTarget(Zombie burster, Player target) {
         if (!burster.getWorld().equals(target.getWorld())) return;
-        double radius = Math.max(0.0, plugin.getConfig().getDouble("zombie-classes.burster.radius", 3.0));
-        if (burster.getLocation().distanceSquared(target.getLocation()) > radius * radius) return;
+        if (burster.getLocation().distanceSquared(target.getLocation()) > bursterRadiusSquared) return;
 
         UUID id = burster.getUniqueId();
         if (activeBursterFuses.containsKey(id)) return;
 
-        int fuseTicks = Math.max(1, plugin.getConfig().getInt("zombie-classes.burster.fuse_ticks", 30));
-        float power = (float) Math.max(0.0, plugin.getConfig().getDouble("zombie-classes.burster.power", 3.0));
-        // Bug M1 fix: honor zombie-classes.burster.break_blocks (the explosion was hardcoded to never
-        // break terrain). Read here so it's effectively final for the fuse runnable below.
-        boolean breakBlocks = plugin.getConfig().getBoolean("zombie-classes.burster.break_blocks", true);
-        
         // CRITICAL FIX: Add burster fuse to tracking map
         BukkitRunnable fuse = new BukkitRunnable() {
             private int ticks = 0;
@@ -608,11 +676,11 @@ public class xApocalypseUtils {
                 
                 ticks++;
                 
-                if (ticks >= fuseTicks) {
+                if (ticks >= bursterFuseTicks) {
                     // Explode
                     Location loc = burster.getLocation();
                     burster.remove(); // Remove entity before explosion
-                    loc.getWorld().createExplosion(loc, power, false, breakBlocks);
+                    loc.getWorld().createExplosion(loc, bursterPower, false, bursterBreakBlocks);
                     this.cancel();
                     activeBursterFuses.remove(id);
                 } else {
@@ -680,9 +748,10 @@ public class xApocalypseUtils {
     // === FROST EVENT HANDLERS ===
 
     public void handleFrostHit(Zombie frost, Player victim) {
-        int durationTicks = plugin.getConfig().getInt("zombie-classes.frost.duration_ticks", 100);
-        int level = plugin.getConfig().getInt("zombie-classes.frost.slowness_level", 2);
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, durationTicks, Math.max(0, level - 1)));
+        if (frostDurationTicks > 0) {
+            victim.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,
+                    frostDurationTicks, frostAmplifier));
+        }
     }
 
     // === SCORCHED EVENT HANDLERS ===
@@ -693,9 +762,8 @@ public class xApocalypseUtils {
      * so zombie-classes.scorched.fire-duration-seconds did nothing.
      */
     public void handleScorchedHit(Zombie scorched, Player victim) {
-        int seconds = plugin.getConfig().getInt("zombie-classes.scorched.fire-duration-seconds", 4);
-        if (seconds <= 0) return;
-        victim.setFireTicks(Math.max(victim.getFireTicks(), seconds * 20));
+        if (scorchedFireTicks <= 0) return;
+        victim.setFireTicks(Math.max(victim.getFireTicks(), scorchedFireTicks));
     }
 
     // === PSYCHOPATH EVENT HANDLERS ===
@@ -705,8 +773,8 @@ public class xApocalypseUtils {
      * Previously zombie-classes.psychopath.bleed-duration-seconds was never read.
      */
     public void handlePsychopathHit(Zombie psycho, Player victim) {
-        int seconds = plugin.getConfig().getInt("zombie-classes.psychopath.bleed-duration-seconds", 3);
-        if (seconds <= 0) return;
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, seconds * 20, 0));
+        if (psychopathBleedDurationTicks <= 0) return;
+        victim.addPotionEffect(new PotionEffect(PotionEffectType.WITHER,
+                psychopathBleedDurationTicks, 0));
     }
 }

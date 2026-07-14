@@ -6,8 +6,8 @@
 
 ## 0. Resolution status
 
-All Critical and Moderate bugs, and most Minor items, were **fixed** (build verified — `mvn clean
-compile` succeeds). The findings below are kept as the original report for reference.
+All Critical, Moderate, and Minor findings are **fixed as of 1.4.3** (build verified with Maven).
+The findings below are kept as the original report for reference.
 
 **Fixed:** C1, C2, M1, M2, M3, M4, and Minor: `use-nametags` wired, `tps-threshold` wired (shipped
 default lowered to `15.0`), dead keys removed from `config.yml` (`spawns-per-tick`,
@@ -15,12 +15,12 @@ default lowered to `15.0`), dead keys removed from `config.yml` (`spawns-per-tic
 `isBaby()`, `getCurrentTPS()` catches `Throwable`, `/xa spawn <type>` now surface-snaps, and the
 `UndeadSpawner` trackers are cleared on reload/disable.
 
-**Intentionally deferred (low value / would risk regressions):** merging the two per-tick zombie
-loops (perf-only refactor); the `Attribute.GENERIC_*` deprecation (can't change while targeting the
-1.21 API — left as a compat note); the natural-moon bossbar drain cosmetics (intertwined with forced
-timing); the dual-wield "already immune" message and the MiniMessage `<`/`#` heuristic (rare
-cosmetics); removing `playerScent` on quit (left as-is — it self-heals via decay, and removing it
-would wipe a relogging player's accumulated scent).
+**1.4.3 Minor closure:** the LOD and custom-AI zombie scans now share one pass; class behavior config
+is cached and refreshed on reload; obsolete player-spawn overloads and their UUID tracker were
+removed; scent state is released on quit; attributes use registry-backed references; dual-hand Guts
+activation is deduplicated; and MiniMessage detection now requires a syntactically valid tag. The
+natural Blood Moon bossbar uses the real 10,000-tick night window, so its progress and countdown now
+reach zero with the event.
 
 > ⚠️ **Behavior changes to be aware of after these fixes:** (1) natural Blood Moons now broadcast and
 > spawn the MythicMobs Mutant — if you don't want that, set `mythicmobs.integration.max-global-cap`

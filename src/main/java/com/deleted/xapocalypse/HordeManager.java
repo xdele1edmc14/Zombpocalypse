@@ -7,12 +7,12 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -54,18 +54,20 @@ public class HordeManager {
         new BukkitRunnable() {
             @Override
             public void run() {
+                PerformanceWatchdog watchdog = plugin.getPerformanceWatchdog();
+                long currentTick = Bukkit.getServer().getCurrentTick();
                 for (World world : Bukkit.getWorlds()) {
                     if (!plugin.isWorldEnabled(world)) continue;
 
-                    for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
-                        if (entity instanceof Zombie zombie) {
-                            // LOD System: Only tick AI if zombie is close or LOD system allows it
-                            if (plugin.getPerformanceWatchdog() == null || plugin.getPerformanceWatchdog().shouldTickZombieAI(zombie)) {
-                                utils.tickZombieAI(zombie);
-                            }
+                    List<Player> players = world.getPlayers();
+                    for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
+                        if (watchdog == null
+                                || watchdog.manageZombieAndShouldTick(zombie, players, currentTick)) {
+                            utils.tickZombieAI(zombie);
                         }
                     }
                 }
+                if (watchdog != null) watchdog.finishAITick();
             }
         }.runTaskTimer(plugin, 0L, 10L); // Tick every 0.5 seconds
     }

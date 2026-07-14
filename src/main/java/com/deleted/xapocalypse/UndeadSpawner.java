@@ -10,9 +10,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
-import org.bukkit.GameMode;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -28,7 +26,6 @@ public final class UndeadSpawner {
     private static final double RISE_PER_TICK = 0.06;
     private static final double START_BELOW_SURFACE_Y = 1.2;
 
-    private static final long PER_PLAYER_COOLDOWN_MS = 3000L;
     private static final long PER_BLOCK_COOLDOWN_MS = 2000L;
 
     private static final int MAX_CONCURRENT_ANIMATIONS = 50;
@@ -36,55 +33,12 @@ public final class UndeadSpawner {
     private final xApocalypse plugin;
     private final xApocalypseUtils utils;
 
-    private final Map<UUID, Long> lastSpawnByPlayerMs = new HashMap<>();
     private final Map<Long, Long> activeOrRecentByBlockMs = new HashMap<>();
     private final Set<UUID> activeAnimationEntities = new HashSet<>();
 
     public UndeadSpawner(xApocalypse plugin, xApocalypseUtils utils) {
         this.plugin = plugin;
         this.utils = utils;
-    }
-
-    public Zombie trySpawnUndeadRise(Player player) {
-        if (player == null) return null;
-        return trySpawnUndeadRise(player, player.getLocation());
-    }
-
-    public Zombie trySpawnUndeadRise(Player player, Location target) {
-        if (player == null || target == null) return null;
-
-        if (player.hasPermission("xapocalypse.admin")) return null;
-        if (player.getGameMode() != GameMode.SURVIVAL) return null;
-        if (player.isFlying() || player.isGliding()) return null;
-
-        long now = System.currentTimeMillis();
-        Long last = lastSpawnByPlayerMs.get(player.getUniqueId());
-        if (last != null && (now - last) < PER_PLAYER_COOLDOWN_MS) return null;
-
-        Zombie zombie = trySpawnUndeadRise(target);
-        if (zombie != null) {
-            lastSpawnByPlayerMs.put(player.getUniqueId(), now);
-        }
-        return zombie;
-    }
-
-    public Zombie trySpawnUndeadRise(Location target) {
-        if (target == null) return null;
-
-        World world = target.getWorld();
-        if (world == null) return null;
-
-        Location surface = getSurfaceSpawnLocation(target);
-        if (surface == null) return null;
-
-        Block surfaceBlock = surface.getBlock().getRelative(BlockFace.DOWN);
-        BlockData surfaceData = surfaceBlock.getBlockData();
-
-        return trySpawnUndeadRise(surface, surfaceBlock, surfaceData);
-    }
-
-    public Zombie trySpawnUndeadRise(Location surface, Block surfaceBlock, BlockData surfaceData) {
-        return trySpawnUndeadRise(surface, surfaceBlock, surfaceData, 0L);
     }
 
     public Zombie trySpawnUndeadRise(Location surface, Block surfaceBlock, BlockData surfaceData, long startDelayTicks) {
@@ -234,7 +188,6 @@ public final class UndeadSpawner {
         }
         activeAnimationEntities.clear();
         activeOrRecentByBlockMs.clear();
-        lastSpawnByPlayerMs.clear();
     }
 
     private boolean isValidSurface(Block surfaceBlock) {

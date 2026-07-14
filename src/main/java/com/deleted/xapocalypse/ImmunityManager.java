@@ -2,7 +2,6 @@ package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.attribute.Attribute;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
@@ -284,9 +283,9 @@ public class ImmunityManager {
         // the "expired" message and health restore only happen once.
         if (!immunePlayers.contains(uuid)) return;
 
-        if (originalHealth.containsKey(uuid) && player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+        if (originalHealth.containsKey(uuid) && player.getAttribute(AttributeResolver.MAX_HEALTH) != null) {
             double originalMaxHealth = originalHealth.get(uuid);
-            player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(originalMaxHealth);
+            player.getAttribute(AttributeResolver.MAX_HEALTH).setBaseValue(originalMaxHealth);
             player.setHealth(Math.min(player.getHealth(), originalMaxHealth));
             player.sendMessage(messageManager.get("immunity.health-restored"));
         }
@@ -333,7 +332,7 @@ public class ImmunityManager {
     public void onPlayerJoin(Player player) {
         UUID uuid = player.getUniqueId();
 
-        if (originalHealth.containsKey(uuid) && player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+        if (originalHealth.containsKey(uuid) && player.getAttribute(AttributeResolver.MAX_HEALTH) != null) {
             // BUGFIX: was player.getWorld().getFullTime() — corrupted by world.setTime()
             // calls in the blood moon system. Use the real-world clock instead.
             long remainingMillis = 0;
@@ -342,7 +341,7 @@ public class ImmunityManager {
             }
 
             if (remainingMillis > 0) {
-                player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(10.0);
+                player.getAttribute(AttributeResolver.MAX_HEALTH).setBaseValue(10.0);
                 player.setHealth(Math.min(player.getHealth(), 10.0));
                 immunePlayers.add(uuid);
 
@@ -353,7 +352,7 @@ public class ImmunityManager {
                 scheduleImmunityRemoval(player, remainingMillis / 50L);
             } else {
                 double storedOriginalHealth = originalHealth.get(uuid);
-                player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(storedOriginalHealth);
+                player.getAttribute(AttributeResolver.MAX_HEALTH).setBaseValue(storedOriginalHealth);
                 player.setHealth(Math.min(player.getHealth(), storedOriginalHealth));
                 cleanUpPlayerState(player);
                 dataConfig.set("player-immunity." + uuid.toString(), null);
@@ -427,8 +426,15 @@ public class ImmunityManager {
 
         // event.getItem() is the item in the hand that fired THIS event, so the main-hand and
         // off-hand passes are naturally distinguished — only the hand actually holding guts proceeds.
-        // The already-immune guard in grantGutsImmunity makes the once-per-hand double fire a no-op.
         if (!isZombieGutsItem(event.getItem())) return;
+
+        // Bukkit fires one interaction per hand. If both hands hold Guts, prefer the main hand and
+        // silently suppress the off-hand pass so it cannot emit a second "already immune" message.
+        if (hand == EquipmentSlot.OFF_HAND
+                && isZombieGutsItem(event.getPlayer().getInventory().getItemInMainHand())) {
+            event.setCancelled(true);
+            return;
+        }
 
         event.setCancelled(true); // suppress the vanilla eat / any use-on-block
         grantGutsImmunity(event.getPlayer(), hand);
@@ -468,10 +474,10 @@ public class ImmunityManager {
         if (player.getWorld() == null) return;
 
         double maxHealth = 10.0;
-        if (player.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
-            originalHealth.put(uuid, player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue());
+        if (player.getAttribute(AttributeResolver.MAX_HEALTH) != null) {
+            originalHealth.put(uuid, player.getAttribute(AttributeResolver.MAX_HEALTH).getBaseValue());
 
-            player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(maxHealth);
+            player.getAttribute(AttributeResolver.MAX_HEALTH).setBaseValue(maxHealth);
             player.setHealth(Math.min(player.getHealth(), maxHealth));
         }
 

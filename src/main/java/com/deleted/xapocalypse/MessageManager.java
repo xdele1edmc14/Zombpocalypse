@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -22,6 +23,9 @@ import java.util.stream.Collectors;
  * Zero GC overhead with aggressive caching
  */
 public class MessageManager {
+
+    private static final Pattern MINI_MESSAGE_TAG = Pattern.compile(
+            "(?i)<(?:/?[a-z][a-z0-9_-]*(?::[^<>]*)?|#[0-9a-f]{6})>");
 
     private final JavaPlugin plugin;
     private File messagesFile;
@@ -118,8 +122,7 @@ public class MessageManager {
      */
     private String parseMessage(String raw) {
         // Check if message uses MiniMessage syntax
-        if (raw.contains("<") && (raw.contains("gradient") || raw.contains("rainbow") ||
-                raw.contains("hover") || raw.contains("click") || raw.contains("#"))) {
+        if (usesMiniMessage(raw)) {
 
             try {
                 // Normalize any embedded legacy codes (&l, &c, §a, …) to MiniMessage tags first.
@@ -136,6 +139,10 @@ public class MessageManager {
             // Parse as legacy color codes
             return ChatColor.translateAlternateColorCodes('&', raw);
         }
+    }
+
+    private boolean usesMiniMessage(String raw) {
+        return raw != null && MINI_MESSAGE_TAG.matcher(raw).find();
     }
 
     /**
@@ -245,14 +252,16 @@ public class MessageManager {
         }
 
         // Parse as MiniMessage if it uses MiniMessage syntax
-        if (rawMessage.contains("<") && (rawMessage.contains("gradient") || rawMessage.contains("rainbow") ||
-                rawMessage.contains("hover") || rawMessage.contains("click") || rawMessage.contains("#"))) {
-            return miniMessage.deserialize(legacyToMiniMessage(rawMessage));
-        } else {
-            // Convert legacy to Component
-            String legacy = ChatColor.translateAlternateColorCodes('&', rawMessage);
-            return legacySerializer.deserialize(legacy);
+        if (usesMiniMessage(rawMessage)) {
+            try {
+                return miniMessage.deserialize(legacyToMiniMessage(rawMessage));
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to parse MiniMessage component: " + rawMessage);
+            }
         }
+
+        String legacy = ChatColor.translateAlternateColorCodes('&', rawMessage);
+        return legacySerializer.deserialize(legacy);
     }
 
     /**

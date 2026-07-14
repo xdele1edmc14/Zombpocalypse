@@ -9,7 +9,6 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,6 @@ public class PerformanceWatchdog {
 
     private final xApocalypse plugin;
     private BukkitTask watchdogTask;
-    private BukkitTask lodTask;
     
     private long checkIntervalTicks;
     
@@ -53,25 +51,13 @@ public class PerformanceWatchdog {
         if (watchdogTask != null) {
             watchdogTask.cancel();
         }
-        if (lodTask != null) {
-            lodTask.cancel();
-        }
-
         watchdogTask = new BukkitRunnable() {
             @Override
             public void run() {
                 checkPerformance();
             }
         }.runTaskTimer(plugin, 0L, checkIntervalTicks);
-        
-        // Start LOD system for distance-based AI throttling
-        lodTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                updateLODSystem();
-            }
-        }.runTaskTimer(plugin, 0L, 10L); // Check every 0.5 seconds
-        
+
         plugin.debugLog("PerformanceWatchdog started (check interval: " + checkIntervalTicks + " ticks)");
     }
 
@@ -79,10 +65,6 @@ public class PerformanceWatchdog {
         if (watchdogTask != null) {
             watchdogTask.cancel();
             watchdogTask = null;
-        }
-        if (lodTask != null) {
-            lodTask.cancel();
-            lodTask = null;
         }
         restoreManagedZombieAI();
         zombieLastAITick.clear();
@@ -222,75 +204,49 @@ public class PerformanceWatchdog {
     }
     
     /**
-     * LOD System: Distance-based AI throttling
-     * Bug 19 fix: call zombie.setAI(false/true) to actually suppress vanilla pathfinding for far zombies.
-     * The previous implementation only gated plugin-side AI methods — vanilla pathfinding ran regardless.
+     * Applies LOD state and decides whether plugin AI should run during HordeManager's existing
+     * zombie pass. Keeping both decisions here eliminates the former second full-world scan.
      */
-    private void updateLODSystem() {
-        long currentTick = Bukkit.getServer().getCurrentTick();
+    public boolean manageZombieAndShouldTick(Zombie zombie, List<Player> worldPlayers, long currentTick) {
+        if (zombie.isDead() || !zombie.isValid()) return false;
+        if (!isManagedZombie(zombie)) {
+            if (zombieLastAITick.remove(zombie) != null && !zombie.hasAI()) zombie.setAI(true);
+            return false;
+        }
+        if (zombie.getPersistentDataContainer().has(
+                xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) return false;
 
-        for (World world : Bukkit.getWorlds()) {
-            if (!plugin.isWorldEnabled(world)) continue;
-
-            List<Player> players = world.getPlayers();
-            if (players.isEmpty()) {
-                // No players — disable AI for all zombies in this world to save CPU
-                for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
-                    if (!(entity instanceof Zombie zombie) || zombie.isDead() || !zombie.isValid()) continue;
-                    if (!isManagedZombie(zombie)) continue;
-                    // Bug 19 fix: skip zombies mid-rise-animation (setAI(false) would conflict)
-                    if (zombie.getPersistentDataContainer().has(
-                            xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
-                    if (zombie.hasAI()) zombie.setAI(false);
-                    zombieLastAITick.put(zombie, currentTick);
-                }
-                continue;
-            }
-
-            for (Entity entity : world.getEntitiesByClass(Zombie.class)) {
-                if (!(entity instanceof Zombie zombie)) continue;
-                if (zombie.isDead() || !zombie.isValid()) continue;
-                if (!isManagedZombie(zombie)) continue;
-                // Bug 19 fix: skip animating zombies
-                if (zombie.getPersistentDataContainer().has(
-                        xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
-
-                double minDistance = Double.MAX_VALUE;
-                for (Player player : players) {
-                    double dist = zombie.getLocation().distanceSquared(player.getLocation());
-                    if (dist < minDistance) minDistance = dist;
-                }
-                double distance = Math.sqrt(minDistance);
-
-                if (distance > lodDistanceThreshold) {
-                    // Bug 19 fix: actually disable vanilla AI for far zombies
-                    if (zombie.hasAI()) zombie.setAI(false);
-                    zombieLastAITick.put(zombie, currentTick);
-                } else {
-                    // Re-enable AI when a player moves close
-                    if (!zombie.hasAI()) zombie.setAI(true);
-                    zombieLastAITick.remove(zombie);
-                }
-            }
+        if (worldPlayers.isEmpty()) {
+            if (zombie.hasAI()) zombie.setAI(false);
+            zombieLastAITick.put(zombie, currentTick);
+            return false;
         }
 
-        // Bug 7 fix: only run the removeIf sweep when the map is large enough to warrant it
+        double nearestDistanceSquared = Double.MAX_VALUE;
+        for (Player player : worldPlayers) {
+            double distanceSquared = zombie.getLocation().distanceSquared(player.getLocation());
+            if (distanceSquared < nearestDistanceSquared) nearestDistanceSquared = distanceSquared;
+        }
+
+        if (nearestDistanceSquared > lodDistanceThreshold * lodDistanceThreshold) {
+            if (zombie.hasAI()) zombie.setAI(false);
+            Long lastTick = zombieLastAITick.get(zombie);
+            if (lastTick == null || currentTick - lastTick >= lodTickInterval) {
+                zombieLastAITick.put(zombie, currentTick);
+                return true;
+            }
+            return false;
+        }
+
+        if (!zombie.hasAI()) zombie.setAI(true);
+        zombieLastAITick.remove(zombie);
+        return true;
+    }
+
+    public void finishAITick() {
         if (zombieLastAITick.size() > 500) {
             zombieLastAITick.entrySet().removeIf(entry -> entry.getKey().isDead() || !entry.getKey().isValid());
         }
-    }
-    
-    /**
-     * Check if a zombie should have its AI ticked (LOD system)
-     */
-    public boolean shouldTickZombieAI(Zombie zombie) {
-        if (zombie.isDead() || !zombie.isValid()) return false;
-        
-        Long lastTick = zombieLastAITick.get(zombie);
-        if (lastTick == null) return true; // Not in LOD system, allow tick
-        
-        long currentTick = Bukkit.getServer().getCurrentTick();
-        return (currentTick - lastTick) >= lodTickInterval;
     }
 
     private boolean isManagedZombie(Zombie zombie) {
@@ -302,6 +258,12 @@ public class PerformanceWatchdog {
     /** Restores AI that this watchdog disabled so reload, shutdown, or plugin removal is reversible. */
     private void restoreManagedZombieAI() {
         if (plugin.getUtils() == null) return;
+        for (Zombie zombie : new ArrayList<>(zombieLastAITick.keySet())) {
+            if (zombie.isDead() || !zombie.isValid()) continue;
+            if (zombie.getPersistentDataContainer().has(
+                    xApocalypseUtils.ANIMATING_KEY, org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+            if (!zombie.hasAI()) zombie.setAI(true);
+        }
         for (World world : Bukkit.getWorlds()) {
             for (Zombie zombie : world.getEntitiesByClass(Zombie.class)) {
                 if (!isManagedZombie(zombie) || zombie.isDead() || !zombie.isValid()) continue;

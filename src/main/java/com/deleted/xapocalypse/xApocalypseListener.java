@@ -185,7 +185,7 @@ public class xApocalypseListener implements Listener {
         }
 
         if (entity instanceof Zombie zombie) {
-            if (!plugin.isAllowBabyZombies() && zombie.isBaby()) { event.setCancelled(true); return; }
+            if (!plugin.isAllowBabyZombies() && !zombie.isAdult()) { event.setCancelled(true); return; }
             if (!plugin.isAllowZombieVillagers() && zombie.getType() == EntityType.ZOMBIE_VILLAGER) { event.setCancelled(true); return; }
 
             // Assign zombie type
