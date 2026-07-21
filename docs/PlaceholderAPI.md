@@ -6,9 +6,9 @@ xApocalypse 1.5.0 provides an internal [PlaceholderAPI](https://www.spigotmc.org
 
 | Placeholder | Value |
 |-------------|-------|
-| `%xapocalypse_bloodmoon_days_left%` | Whole in-game days until the next natural Blood Moon. Returns `0` while a Blood Moon is active or due that day. |
+| `%xapocalypse_bloodmoon_days_left%` | Whole in-game days until the next natural Blood Moon. Returns `Tonight` while a Blood Moon is active or due that day. |
 | `%xapocalypse_zombie_guts_duration%` | Whole seconds remaining on that player's Zombie Guts effect. Returns `0` when inactive or when no player context is available. |
-| `%xapocalypse_current_scent%` | That player's current scent value. Returns `0` when no scent or player context is available. |
+| `%xapocalypse_current_scent%` | That player's current scent value, rounded to the nearest whole number. Returns `0` when no scent or player context is available. |
 
 The expansion is bundled inside xApocalypse, so it does not need to be downloaded through PlaceholderAPI's eCloud. Use the placeholders anywhere supported by scoreboard, tab-list, chat, hologram, or other PlaceholderAPI-aware plugins.
 

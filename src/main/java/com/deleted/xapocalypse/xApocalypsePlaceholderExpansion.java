@@ -5,7 +5,6 @@ import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.math.BigDecimal;
 import java.util.Locale;
 
 /** PlaceholderAPI values exposed by xApocalypse when PlaceholderAPI is installed. */
@@ -39,7 +38,7 @@ public final class xApocalypsePlaceholderExpansion extends PlaceholderExpansion 
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
         return switch (params.toLowerCase(Locale.ROOT)) {
-            case "bloodmoon_days_left" -> Integer.toString(
+            case "bloodmoon_days_left" -> formatBloodMoonDays(
                     plugin.getBloodMoon().getDaysUntilNextBloodMoon());
             case "zombie_guts_duration" -> player == null ? "0" : Long.toString(
                     plugin.getImmunity().getRemainingSeconds(player.getUniqueId()));
@@ -49,8 +48,12 @@ public final class xApocalypsePlaceholderExpansion extends PlaceholderExpansion 
         };
     }
 
+    private String formatBloodMoonDays(int days) {
+        return days == 0 ? "Tonight" : Integer.toString(days);
+    }
+
     private String formatScent(double scent) {
         if (!Double.isFinite(scent) || scent <= 0.0) return "0";
-        return BigDecimal.valueOf(scent).stripTrailingZeros().toPlainString();
+        return Long.toString(Math.round(scent));
     }
 }
