@@ -22,7 +22,7 @@ With `debug-mode: true`, the console prints exactly why each player is skipped o
 The spawner reads your **live** world each cycle. If `/rtp` or a Multiverse teleport lands you in a world that isn't in `enabled-worlds` (or is a `lobby-world`), spawning is correctly suppressed there. The debug log prints the exact world name it sees for you.
 
 ### Zombies spawn on tree leaves / inside hills / not at all in forests
-This is handled: the spawner scans **downward** from the top of the column to the first real surface, so it lands on the ground beneath canopies and tall grass. In very rough terrain (water, ravines) some attempts are skipped after a retry — that's expected and logged as "skipped" in debug.
+This is handled: in normal and custom-generator worlds, the spawner uses the no-leaves terrain heightmap and accepts only its exposed surface. It does not scan down into a cave when water, obstructed terrain, or another unsafe top block is encountered. Tall grass and other passable plants can remain above a valid floor. In very rough terrain (water, ravines), some attempts are skipped after a retry; debug mode reports them as `no surface`.
 
 ### `/xa spawn` works but natural hordes don't (or vice-versa)
 `/xa spawn` deliberately **bypasses** the GriefPrevention and mob-list gates and snaps to a surface, so it always works. Natural spawning honors those gates. If natural spawns are blocked everywhere, check `use-mob-blacklist`/`mob-list` and whether you're standing in a claim.

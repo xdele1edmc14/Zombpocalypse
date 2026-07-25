@@ -12,6 +12,7 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -174,12 +175,14 @@ public class xApocalypseListener implements Listener {
         if (!plugin.isWorldEnabled(event.getLocation().getWorld())) return;
 
         Entity entity = event.getEntity();
-        if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
-            String mobName = entity.getType().toString();
-            boolean inList = plugin.getMobList().contains(mobName);
+        if (isMobListSpawnReason(event.getSpawnReason())) {
+            boolean inList = isInMobList(entity.getType(), plugin.getMobList());
             boolean blocked = plugin.isUseMobBlacklist() ? inList : !inList;
             if (blocked) {
                 event.setCancelled(true);
+                plugin.debugLog("Blocked " + entity.getType().name() + " spawn (reason: "
+                        + event.getSpawnReason() + ") by mob "
+                        + (plugin.isUseMobBlacklist() ? "blacklist" : "whitelist") + ".");
                 return;
             }
         }
@@ -191,6 +194,36 @@ public class xApocalypseListener implements Listener {
             // Assign zombie type
             utils.assignZombieType(zombie);
         }
+    }
+
+    static boolean isMobListSpawnReason(CreatureSpawnEvent.SpawnReason reason) {
+        // Custom generators can add their initial entities during chunk population rather than the
+        // normal mob tick, which Bukkit reports as CHUNK_GEN. Both are world-generated spawns and
+        // should obey the configured blacklist/whitelist; commands, spawners and plugin CUSTOM
+        // entities retain their normal behavior.
+        return reason == CreatureSpawnEvent.SpawnReason.NATURAL
+                || reason == CreatureSpawnEvent.SpawnReason.CHUNK_GEN;
+    }
+
+    static boolean isInMobList(EntityType type, List<String> configuredMobs) {
+        if (type == null || configuredMobs == null) return false;
+
+        String enumName = type.name();
+        String namespacedName = type.getKey().toString();
+        for (String configured : configuredMobs) {
+            if (configured == null) continue;
+            String entry = configured.trim();
+            if (entry.equalsIgnoreCase(enumName) || entry.equalsIgnoreCase(namespacedName)) {
+                return true;
+            }
+            // Accept the common "minecraft:zombie" spelling as well as "ZOMBIE", regardless
+            // of case, without changing the user's config file on disk.
+            int separator = entry.indexOf(':');
+            if (separator >= 0 && entry.substring(separator + 1).equalsIgnoreCase(enumName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @EventHandler

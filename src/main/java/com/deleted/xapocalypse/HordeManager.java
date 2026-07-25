@@ -130,7 +130,10 @@ public class HordeManager {
         int spawnRadius = Math.max(1,
                 plugin.getConfig().getInt("apocalypse-settings.spawn-radius", 35));
 
-        int skipped = 0;
+        int spawned = 0;
+        int noSurface = 0;
+        int claimed = 0;
+        int spawnRejected = 0;
         for (int i = 0; i < finalHordeSize; i++) {
             double xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
             double zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
@@ -138,17 +141,24 @@ public class HordeManager {
 
             Location surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
 
+            boolean insideClaim = surface != null && plugin.isInsideClaim(surface);
+
             // Retry once with a fresh random offset before giving up — reduces wasted
-            // attempts near water, ravines, or ocean biomes.
-            if (surface == null || plugin.isInsideClaim(surface)) {
+            // attempts near water, ravines, claims, or ocean biomes.
+            if (surface == null || insideClaim) {
                 xOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
                 zOffset = ThreadLocalRandom.current().nextDouble(-spawnRadius, spawnRadius);
                 spawnLoc = player.getLocation().clone().add(xOffset, 0, zOffset);
                 surface = undeadSpawner.getSurfaceSpawnLocation(spawnLoc);
+                insideClaim = surface != null && plugin.isInsideClaim(surface);
             }
 
-            if (surface == null || plugin.isInsideClaim(surface)) {
-                skipped++;
+            if (surface == null) {
+                noSurface++;
+                continue;
+            }
+            if (insideClaim) {
+                claimed++;
                 continue;
             }
 
@@ -159,7 +169,11 @@ public class HordeManager {
 
             if (risingAnimation) {
                 long startDelayTicks = i % 5L;
-                undeadSpawner.trySpawnUndeadRise(surface, surfaceBlock, surfaceData, startDelayTicks);
+                if (undeadSpawner.trySpawnUndeadRise(surface, surfaceBlock, surfaceData, startDelayTicks) != null) {
+                    spawned++;
+                } else {
+                    spawnRejected++;
+                }
             } else {
                 Zombie zombie;
                 isPluginSpawning = true;
@@ -168,13 +182,19 @@ public class HordeManager {
                 } finally {
                     isPluginSpawning = false;
                 }
-                if (zombie != null) utils.assignZombieType(zombie);
+                if (zombie != null) {
+                    utils.assignZombieType(zombie);
+                    spawned++;
+                } else {
+                    spawnRejected++;
+                }
             }
         }
 
-        // Single summary log instead of one line per failed attempt
-        if (skipped > 0) {
-            plugin.debugLog("Horde near " + player.getName() + ": " + (finalHordeSize - skipped) + "/" + finalHordeSize + " spawned (" + skipped + " skipped - no valid surface)");
+        if (spawned < finalHordeSize) {
+            plugin.debugLog("Horde near " + player.getName() + ": " + spawned + "/" + finalHordeSize
+                    + " spawned (no surface: " + noSurface + ", claimed: " + claimed
+                    + ", spawn rejected: " + spawnRejected + ")");
         }
     }
 }

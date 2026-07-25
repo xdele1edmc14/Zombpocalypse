@@ -17,6 +17,8 @@ On startup the plugin verifies the mob type and logs whether the hook succeeded:
 
 If the mob name can't be found, you'll get a warning and Mutant spawning won't occur until it's fixed.
 
+If startup or spawning reports `ResourceLocation`, `MinecraftKey`, `NoSuchMethodError`, or another linkage error, the installed MythicMobs/mob-pack build does not match the server's Minecraft mappings. xApocalypse disables the integration after that failure to avoid repeated errors. Install builds made for the exact server version and perform a full restart (not `/reload`).
+
 ---
 
 ## How Mutants Spawn
@@ -42,7 +44,7 @@ Mutants are placed using smart positioning:
 
 - A spawn point is chosen at a random angle, between `spawn-radius.min` and `spawn-radius.max` blocks from the anchor player (default **20–40**).
 - The system **prefers spots outside the player's line of sight**, so the boss "emerges" rather than popping in visibly (it falls back to a visible spot after several failed attempts).
-- Spawns are snapped to the surface and **skip oceans and lava lakes** and **GriefPrevention claims**.
+- Automatic Blood Moon spawns use the exposed no-leaves terrain heightmap and **skip oceans, lava lakes, underground cave floors, and GriefPrevention claims**. Admin `/xa spawn mutant` uses the same surface validation but intentionally bypasses claims, matching the other `/xa spawn` variants.
 
 ---
 

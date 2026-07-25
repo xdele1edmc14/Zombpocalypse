@@ -1,7 +1,9 @@
 package com.deleted.xapocalypse;
 
 import org.bukkit.Bukkit;
+import org.bukkit.HeightMap;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -29,6 +31,7 @@ public final class UndeadSpawner {
     private static final long PER_BLOCK_COOLDOWN_MS = 2000L;
 
     private static final int MAX_CONCURRENT_ANIMATIONS = 50;
+    private static final int VERTICAL_SEARCH_RADIUS = 48;
 
     private final xApocalypse plugin;
     private final xApocalypseUtils utils;
@@ -192,18 +195,26 @@ public final class UndeadSpawner {
 
     private boolean isValidSurface(Block surfaceBlock) {
         if (surfaceBlock == null) return false;
+
+        Material surfaceType = surfaceBlock.getType();
         // In the Nether the highest block is normally the bedrock ceiling. Treating bedrock as a
         // valid floor placed hordes on top of the roof instead of in the cavern with the player.
-        if (surfaceBlock.getType() == org.bukkit.Material.BEDROCK) return false;
-        if (!surfaceBlock.getType().isSolid()) return false;
-        if (!surfaceBlock.getType().isOccluding()) return false;
-        if (surfaceBlock.isLiquid()) return false;
+        if (surfaceType == Material.BEDROCK) return false;
+        if (!surfaceBlock.isSolid() || surfaceBlock.isLiquid()) return false;
+        // Leaves are reported as solid but make unstable canopy spawn points. isOccluding() used
+        // to reject them, but it also rejected legitimate TerraformGenerator surfaces such as
+        // paths, slabs and stairs, so exclude leaves directly instead.
+        if (surfaceType.name().endsWith("_LEAVES")) return false;
 
         Block above = surfaceBlock.getRelative(BlockFace.UP);
-        if (!above.getType().isAir()) return false;
+        if (!isSafeHeadroom(above)) return false;
 
         Block above2 = above.getRelative(BlockFace.UP);
-        return above2.getType().isAir();
+        return isSafeHeadroom(above2);
+    }
+
+    private boolean isSafeHeadroom(Block block) {
+        return block != null && block.isPassable() && !block.isLiquid();
     }
 
     Location getSurfaceSpawnLocation(Location target) {
@@ -211,18 +222,29 @@ public final class UndeadSpawner {
         World world = target.getWorld();
         if (world == null) return null;
 
-        // Bug fix: getHighestBlockAt() returns the single top block of the column, which in
-        // forests/jungles/swamps is leaves, and in tall-grass/flower/snow terrain is the plant —
-        // none of which pass isValidSurface(). That made every spawn attempt return null wherever
-        // /rtp dropped the player into natural (non-cleared) terrain, producing zero spawns, while
-        // the cleared /mvtp world-spawn worked. Scan downward from the top to the first real
-        // standing surface so we land on the ground beneath the canopy instead of giving up.
-        int targetY = target.getBlockY();
-        int topY = Math.min(world.getHighestBlockAt(target).getY(), targetY + 48);
         int x = target.getBlockX();
         int z = target.getBlockZ();
-        int floorY = Math.max(world.getMinHeight(), targetY - 48);
 
+        // In normal/custom terrain worlds, only accept the exposed terrain surface. The previous
+        // +/- 48 block scan kept descending whenever the top block was unsuitable (water, dense
+        // decoration, an overhang, etc.) and could eventually accept a perfectly valid cave floor.
+        // Mutants were especially likely to keep that result because their placement code prefers
+        // locations outside the player's line of sight. The no-leaves heightmap handles generator
+        // terrain and forest floors without allowing the search to escape into underground caves.
+        if (world.getEnvironment() != World.Environment.NETHER) {
+            int surfaceY = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES);
+            if (surfaceY < world.getMinHeight() || surfaceY >= world.getMaxHeight()) return null;
+
+            Block surface = world.getBlockAt(x, surfaceY, z);
+            if (!isValidSurface(surface)) return null;
+            return surface.getLocation().add(0.5, 1.0, 0.5);
+        }
+
+        // Nether heightmaps point at the bedrock roof, so retain a player-relative cavern scan
+        // there. Underground floors are the intended playable terrain in that environment.
+        int targetY = target.getBlockY();
+        int topY = Math.min(world.getMaxHeight() - 1, targetY + VERTICAL_SEARCH_RADIUS);
+        int floorY = Math.max(world.getMinHeight(), targetY - VERTICAL_SEARCH_RADIUS);
         for (int y = topY; y >= floorY; y--) {
             Block candidate = world.getBlockAt(x, y, z);
             if (isValidSurface(candidate)) {

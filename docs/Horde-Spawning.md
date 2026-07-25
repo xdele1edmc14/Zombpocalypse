@@ -63,8 +63,9 @@ The result is then clamped twice:
 
 Each zombie picks a random spot within `apocalypse-settings.spawn-radius` (default **35** blocks) of the player, then the spawner finds a valid surface to stand on:
 
-- It scans **downward from the top of the column** to the first solid, non-liquid block with two air blocks above it — so zombies spawn on the **ground beneath tree canopies and tall grass**, not on leaves or inside terrain.
-- If no valid surface is found, it retries once with a fresh random offset, then gives up that slot (logged as "skipped" in debug).
+- In normal and custom-generator worlds, it uses the `MOTION_BLOCKING_NO_LEAVES` terrain heightmap and accepts only that exposed surface. It never keeps scanning down into a cave when the surface is unsuitable.
+- Solid paths, slabs, and stairs are accepted, and passable plants or snow may occupy the headroom; liquids, leaf canopies, bedrock, and obstructed spaces are rejected. Nether worlds use a player-relative cavern scan because their heightmap points at the bedrock roof.
+- If no valid surface is found, it retries once with a fresh random offset, then gives up that slot. Debug mode reports surface, claim, and final spawn failures separately.
 
 If `apocalypse-settings.rising-animation: true` (default), zombies **claw their way up out of the ground**:
 
@@ -78,7 +79,7 @@ Set `rising-animation: false` to spawn zombies instantly instead.
 
 ## The Mob Blacklist / Whitelist
 
-xApocalypse also filters **natural** (vanilla) mob spawns in enabled worlds via `onEntitySpawn`:
+xApocalypse also filters world-generated mob spawns in enabled worlds via `onEntitySpawn`. This includes normal `NATURAL` spawns and initial `CHUNK_GEN` spawns created while a custom-generator chunk is populated:
 
 ```yaml
 apocalypse-settings:
@@ -90,8 +91,9 @@ apocalypse-settings:
     - CREEPER
 ```
 
-- **Blacklist mode** (`true`): the listed mobs are prevented from spawning naturally.
-- **Whitelist mode** (`false`): *only* the listed mobs may spawn naturally; everything else is blocked.
+- **Blacklist mode** (`true`): the listed mobs are prevented from spawning naturally or during chunk generation.
+- **Whitelist mode** (`false`): *only* the listed mobs may spawn naturally or during chunk generation; everything else is blocked.
+- Entries are case-insensitive and accept either Bukkit names (`ZOMBIE`) or namespaced names (`minecraft:zombie`).
 
 Additionally, non-zombie monsters spawning via `NATURAL` reason are blocked, keeping the night a **zombie** apocalypse. Plugin-spawned zombies (and `/xa spawn`) **bypass** this gate entirely.
 

@@ -110,12 +110,23 @@ public class MythicMobsManager {
                     this.activeMutants.clear();
                     rebuildTrackedMutants();
                 }
+            } catch (LinkageError e) {
+                disableForLinkageError("hook into the MythicMobs API", e);
             } catch (Exception e) {
                 this.log.severe("[MythicMobs] Failed to hook into MythicMobs API: " + e.getMessage());
                 this.mythicMobsEnabled = false;
                 this.mmAPI = null;
             }
         }
+    }
+
+    private void disableForLinkageError(String action, LinkageError error) {
+        this.log.severe("[MythicMobs] Could not " + action + " because MythicMobs, its mob pack, "
+                + "or the server uses incompatible Minecraft mappings/versions. Install builds that "
+                + "match this exact server version and restart the server. Cause: " + error);
+        this.mythicMobsEnabled = false;
+        this.mmAPI = null;
+        this.stopSpawnTickLoop();
     }
 
     public void onBloodMoonStart() {
@@ -186,6 +197,8 @@ public class MythicMobsManager {
         } else {
             this.pruneDeadMutants();
             int spawned = 0;
+            int noValidLocation = 0;
+            int failedSpawn = 0;
 
             for(int i = 0; i < count; ++i) {
                 if (this.maxGlobalCap > 0 && this.activeMutants.size() >= this.maxGlobalCap) {
@@ -193,15 +206,25 @@ public class MythicMobsManager {
                     break;
                 }
 
-                Location loc = this.findSpawnLocation(player.getLocation(), radius, radius + 2);
-                if (loc != null) {
-                    Entity entity = this.spawnMythicMob(loc, false);
-                    if (entity != null) {
-                        ++spawned;
-                    }
+                Location loc = this.findSpawnLocation(player.getLocation(), radius, radius + 2, false);
+                if (loc == null) {
+                    noValidLocation++;
+                    continue;
+                }
+
+                Entity entity = this.spawnMythicMob(loc, false);
+                if (entity != null) {
+                    ++spawned;
+                } else {
+                    failedSpawn++;
                 }
             }
 
+            if (spawned < count) {
+                this.plugin.debugLog("[MythicMobs] Mutant command near " + player.getName() + ": "
+                        + spawned + "/" + count + " spawned (no location: " + noValidLocation
+                        + ", API spawn failed: " + failedSpawn + ").");
+            }
             return spawned;
         }
     }
@@ -214,7 +237,7 @@ public class MythicMobsManager {
             this.pruneDeadMutants();
             if (this.maxGlobalCap <= 0 || this.activeMutants.size() < this.maxGlobalCap) {
                 Player target = (Player)online.get(ThreadLocalRandom.current().nextInt(online.size()));
-                Location loc = this.findSpawnLocation(target.getLocation(), this.spawnRadiusMin, this.spawnRadiusMax);
+                Location loc = this.findSpawnLocation(target.getLocation(), this.spawnRadiusMin, this.spawnRadiusMax, true);
                 if (loc == null) {
                     Location fallback = target.getLocation().add(
                             (double)ThreadLocalRandom.current().nextInt(-5, 5), 0.0,
@@ -264,7 +287,7 @@ public class MythicMobsManager {
                             }
 
                             if (ThreadLocalRandom.current().nextDouble() < MythicMobsManager.this.spawnChance) {
-                                Location loc = MythicMobsManager.this.findSpawnLocation(player.getLocation(), MythicMobsManager.this.spawnRadiusMin, MythicMobsManager.this.spawnRadiusMax);
+                                Location loc = MythicMobsManager.this.findSpawnLocation(player.getLocation(), MythicMobsManager.this.spawnRadiusMin, MythicMobsManager.this.spawnRadiusMax, true);
                                 if (loc != null) {
                                     MythicMobsManager.this.spawnMythicMob(loc, true);
                                 }
@@ -286,6 +309,8 @@ public class MythicMobsManager {
     }
 
     private Entity spawnMythicMob(Location loc, boolean bloodMoonSpawn) {
+        if (!this.mythicMobsEnabled || this.mmAPI == null) return null;
+
         loc = this.snapToGround(loc);
         if (loc == null) {
             return null;
@@ -305,6 +330,9 @@ public class MythicMobsManager {
                 }
 
                 return entity;
+            } catch (LinkageError e) {
+                disableForLinkageError("spawn '" + this.mobType + "'", e);
+                return null;
             } catch (Exception e) {
                 this.log.warning("[MythicMobs] Failed to spawn " + this.mobType + ": " + e.getMessage());
                 return null;
@@ -312,7 +340,7 @@ public class MythicMobsManager {
         }
     }
 
-    private Location findSpawnLocation(Location anchor, int minRadius, int maxRadius) {
+    private Location findSpawnLocation(Location anchor, int minRadius, int maxRadius, boolean avoidClaims) {
         Player nearestPlayer = this.getNearestPlayer(anchor);
         ThreadLocalRandom rng = ThreadLocalRandom.current();
 
@@ -323,7 +351,9 @@ public class MythicMobsManager {
             double z = anchor.getZ() + Math.sin(angle) * dist;
             Location candidate = new Location(anchor.getWorld(), x, anchor.getY(), z);
             candidate = this.snapToGround(candidate);
-            if (candidate != null && !this.plugin.isInsideClaim(candidate) && (nearestPlayer == null || !this.hasLineOfSight(nearestPlayer, candidate) || attempt >= 10)) {
+            boolean blockedByClaim = candidate != null && avoidClaims && this.plugin.isInsideClaim(candidate);
+            if (candidate != null && !blockedByClaim
+                    && (nearestPlayer == null || !this.hasLineOfSight(nearestPlayer, candidate) || attempt >= 10)) {
                 return candidate;
             }
         }

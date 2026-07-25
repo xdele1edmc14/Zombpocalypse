@@ -2,6 +2,12 @@
 
 All notable changes to xApocalypse are documented here.
 
+## [1.5.2] - 2026-07-25
+
+### Fixed
+
+- Fixed a bug where the spawner did not work in custom world generators.
+
 ## [1.5.1] - 2026-07-21
 
 ### Added

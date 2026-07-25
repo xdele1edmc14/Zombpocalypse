@@ -1,4 +1,4 @@
-# xApocalypse v1.5.1 - Balanced Configuration
+# xApocalypse v1.5.2 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -193,7 +193,7 @@ apocalypse-settings:
   day-horde-variance: 2      # 2% chance to spawn during day
   use-mob-blacklist: true      # If true, prevents listed mobs
   rising-animation: true        # Enable/disable zombie rise animation from ground
-  mob-list:                    # Mobs to block (or allow if blacklist=false)
+  mob-list:                    # Case-insensitive Bukkit names or minecraft: names; filters NATURAL and CHUNK_GEN spawns
     - SKELETON
     - WITHER_SKELETON
     - SPIDER
