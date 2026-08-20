@@ -2,6 +2,21 @@
 
 All notable changes to xApocalypse are documented here.
 
+## [1.6.0] - 2026-08-20
+
+### Changed
+
+- Updated the officially supported server target from Paper 1.21 to Paper 26.2.
+- Updated the build and runtime baseline from Java 21 to Java 25, matching Paper 26.2 requirements.
+- Updated the compile-time Paper API to `26.2.build.112-stable` and declared `api-version: 26.2` in `plugin.yml`.
+- Updated the provided Adventure API to 5.2.0 and the Java 25-compatible Mockito test dependency to 5.23.0.
+- Synchronized the release version, compatibility badges, installation artifact names, bundled resource headers, README, testing guide, and wiki documentation.
+
+### Compatibility and upgrade notes
+
+- Existing configuration and data files remain compatible; this release does not change gameplay settings or reset stored state.
+- GriefPrevention, MythicMobs, and PlaceholderAPI remain optional integrations. Install builds of those plugins that explicitly support Minecraft 26.2.
+
 ## [1.5.2] - 2026-07-25
 
 ### Fixed

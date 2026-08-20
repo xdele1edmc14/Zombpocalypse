@@ -70,6 +70,7 @@ RULES: list[tuple[str, re.Pattern]] = [
     # docs/ wiki — Home badge and the two Getting-Started jar references
     _make_rule("docs/Home.md", r"Version-", r"-brightgreen"),
     _make_rule("docs/Getting-Started.md", r"xApocalypse-", r"\.jar"),
+    _make_rule("docs/PlaceholderAPI.md", r"xApocalypse\s+", r"\s+provides"),
 ]
 
 # The plugin.yml version line is the source of truth for "current version".

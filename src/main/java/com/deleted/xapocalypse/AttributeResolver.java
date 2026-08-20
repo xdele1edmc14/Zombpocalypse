@@ -4,7 +4,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 
-/** Registry-backed attribute references that avoid deprecated enum constants on newer 1.21 builds. */
+/** Registry-backed attribute references that avoid deprecated enum constants across Paper versions. */
 final class AttributeResolver {
 
     static final Attribute MAX_HEALTH = require(
@@ -26,8 +26,8 @@ final class AttributeResolver {
         attribute = Registry.ATTRIBUTE.get(NamespacedKey.minecraft(legacyKey));
         if (attribute != null) return attribute;
 
-        // Paper retained the old enum fields across much of 1.21. Resolve them reflectively as a
-        // final binary-compatibility fallback without directly linking deprecated API constants.
+        // Resolve legacy enum fields reflectively as a final binary-compatibility fallback without
+        // directly linking deprecated API constants.
         try {
             Object value = Attribute.class.getField(legacyField).get(null);
             if (value instanceof Attribute legacyAttribute) return legacyAttribute;

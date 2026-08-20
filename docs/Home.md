@@ -11,9 +11,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.5.2-brightgreen?style=flat-square"/>
-  <img src="https://img.shields.io/badge/API-1.21-red?style=flat-square"/>
-  <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square"/>
+  <img src="https://img.shields.io/badge/Version-1.6.0-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/API-26.2-red?style=flat-square"/>
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square"/>
   <img src="https://img.shields.io/badge/License-GPLv3-yellow?style=flat-square"/>
 </p>
 

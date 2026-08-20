@@ -4,7 +4,8 @@
 This guide covers testing all the major fixes and improvements made to the xApocalypse Horde engine. Follow these steps to verify each feature works correctly.
 
 ## Prerequisites
-- PaperMC server running 1.21+
+- PaperMC server running 26.2
+- Java 25
 - xApocalypse plugin installed with updated configuration
 - Test world with various terrain types
 - Debug mode enabled in config.yml for better logging

@@ -6,17 +6,17 @@
 
     <groupId>com.deleted</groupId>
     <artifactId>xapocalypse</artifactId>
-    <version>1.5.2</version>
+    <version>1.6.0</version>
     <packaging>jar</packaging>
 
     <name>xApocalypse</name>
     <description>A hardcore zombie horde plugin with advanced AI, Blood Moons, and GriefPrevention support</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
     </properties>
 
     <repositories>
@@ -43,7 +43,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21-R0.1-SNAPSHOT</version>
+            <version>26.2.build.112-stable</version>
             <scope>provided</scope>
         </dependency>
         
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>net.kyori</groupId>
             <artifactId>adventure-text-minimessage</artifactId>
-            <version>4.17.0</version>
+            <version>5.2.0</version>
             <scope>provided</scope>
         </dependency>
 
@@ -96,7 +96,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.12.0</version>
+            <version>5.23.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -8,9 +8,9 @@ This page covers everything you need to get xApocalypse running on your server.
 
 | Requirement | Details |
 |-------------|---------|
-| **Server software** | Spigot or Paper (Paper recommended — the performance watchdog uses Paper's `getTPS()`) |
-| **API version** | `1.21` (declared in `plugin.yml`) |
-| **Java** | **21** or newer |
+| **Server software** | Paper 26.2 |
+| **API version** | `26.2` (declared in `plugin.yml`) |
+| **Java** | **25** or newer |
 | **GriefPrevention** | *Optional* soft-dependency — enables claim protection |
 | **MythicMobs** | *Optional* soft-dependency — enables the Mutant boss |
 | **PlaceholderAPI** | *Optional* soft-dependency — exposes `%xapocalypse_bloodmoon_days_left%`, `%xapocalypse_zombie_guts_duration%`, and `%xapocalypse_current_scent%` |
@@ -21,7 +21,7 @@ This page covers everything you need to get xApocalypse running on your server.
 
 ## Installation
 
-1. Download or build `xApocalypse-1.5.2.jar` (see [Building from Source](#building-from-source)).
+1. Download or build `xApocalypse-1.6.0.jar` (see [Building from Source](#building-from-source)).
 2. Place the jar in your server's `plugins/` directory.
 3. **Start the server once.** This generates the default configuration files.
 4. Stop the server, edit the configs to taste (see the [Configuration Reference](Configuration-Reference.md)), and start again.
@@ -66,7 +66,7 @@ The project uses Maven:
 mvn clean package
 ```
 
-The compiled jar is written to `target/xApocalypse-1.5.2.jar`.
+The compiled jar is written to `target/xApocalypse-1.6.0.jar`.
 
 ---
 
