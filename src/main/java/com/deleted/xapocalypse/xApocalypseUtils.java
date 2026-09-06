@@ -54,9 +54,18 @@ public class xApocalypseUtils {
     private long minerBreakDelayMs;
     private Set<Material> minerBreakables = EnumSet.noneOf(Material.class);
     private boolean minerDropItems;
+    private double minerTowerMinHeight;
+    private double minerTowerMaxHeight;
+    private double minerTowerHorizontalRangeSquared;
     private long spitterCooldownMs;
     private int spitterPoisonDurationTicks;
     private int spitterPoisonAmplifier;
+    private double spitterImpactDamage;
+    private double spitterMinRange;
+    private double spitterMaxRange;
+    private double spitterProjectileSpeed;
+    private double spitterRetreatRange;
+    private double spitterRetreatSpeed;
     private long psychopathRageCooldownMs;
     private int psychopathBleedDurationTicks;
     private boolean veteranPermanent;
@@ -129,13 +138,32 @@ public class xApocalypseUtils {
         }
         minerBreakables = parsedBreakables;
         minerDropItems = plugin.getConfig().getBoolean("zombie-classes.miner.drop-items", true);
+        minerTowerMinHeight = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.miner.tower-min-height", 1.5));
+        minerTowerMaxHeight = Math.max(minerTowerMinHeight,
+                plugin.getConfig().getDouble("zombie-classes.miner.tower-max-height", 4.0));
+        double minerTowerHorizontalRange = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.miner.tower-horizontal-range", 3.0));
+        minerTowerHorizontalRangeSquared = minerTowerHorizontalRange * minerTowerHorizontalRange;
 
         spitterCooldownMs = Math.max(0L,
-                plugin.getConfig().getLong("zombie-classes.spitter.projectile-cooldown-seconds", 6L)) * 1000L;
+                plugin.getConfig().getLong("zombie-classes.spitter.projectile-cooldown-seconds", 4L)) * 1000L;
         spitterPoisonDurationTicks = Math.max(0,
-                plugin.getConfig().getInt("zombie-classes.spitter.poison-duration-seconds", 8)) * 20;
+                plugin.getConfig().getInt("zombie-classes.spitter.poison-duration-seconds", 6)) * 20;
         spitterPoisonAmplifier = Math.max(0,
                 plugin.getConfig().getInt("zombie-classes.spitter.poison-level", 2) - 1);
+        spitterImpactDamage = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.spitter.impact-damage", 2.0));
+        spitterMinRange = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.spitter.min-range", 1.5));
+        spitterMaxRange = Math.max(spitterMinRange,
+                plugin.getConfig().getDouble("zombie-classes.spitter.max-range", 18.0));
+        spitterProjectileSpeed = Math.max(0.1,
+                plugin.getConfig().getDouble("zombie-classes.spitter.projectile-speed", 1.4));
+        spitterRetreatRange = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.spitter.retreat-range", 4.0));
+        spitterRetreatSpeed = Math.max(0.0,
+                plugin.getConfig().getDouble("zombie-classes.spitter.retreat-speed", 0.22));
 
         psychopathRageCooldownMs = Math.max(0L,
                 plugin.getConfig().getLong("zombie-classes.psychopath.rage-cooldown-seconds", 25L)) * 1000L;
@@ -462,19 +490,58 @@ public class xApocalypseUtils {
 
     private void tickMinerAI(Zombie miner) {
         LivingEntity target = miner.getTarget();
-        if (target == null) return;
+        if (target == null || !miner.getWorld().equals(target.getWorld())) return;
 
         long now = System.currentTimeMillis();
         Long lastBreak = miner.getPersistentDataContainer().get(LAST_BREAK_KEY, PersistentDataType.LONG);
         if (lastBreak != null && (now - lastBreak) < minerBreakDelayMs) return;
 
-        Vector direction = target.getLocation().toVector().subtract(miner.getLocation().toVector()).normalize();
-        Block block = miner.getLocation().add(direction).getBlock();
-        Block eyeBlock = miner.getEyeLocation().add(direction).getBlock();
-
-        if (tryBreak(miner, block) || tryBreak(miner, eyeBlock)) {
-            miner.getPersistentDataContainer().set(LAST_BREAK_KEY, PersistentDataType.LONG, now);
+        for (Block candidate : getMinerBreakCandidates(miner, target)) {
+            if (tryBreak(miner, candidate)) {
+                miner.getPersistentDataContainer().set(LAST_BREAK_KEY, PersistentDataType.LONG, now);
+                return;
+            }
         }
+    }
+
+    /**
+     * Selects actual grid-adjacent obstructions instead of adding a normalized vector to the
+     * entity's fractional position. The latter could round back into the miner's own block.
+     */
+    private List<Block> getMinerBreakCandidates(Zombie miner, LivingEntity target) {
+        Location minerLocation = miner.getLocation();
+        Location targetLocation = target.getLocation();
+        LinkedHashSet<Block> candidates = new LinkedHashSet<>();
+
+        double dx = targetLocation.getX() - minerLocation.getX();
+        double dz = targetLocation.getZ() - minerLocation.getZ();
+        double horizontalDistanceSquared = dx * dx + dz * dz;
+        double towerHeight = targetLocation.getY() - minerLocation.getY();
+        if (towerHeight >= minerTowerMinHeight && towerHeight <= minerTowerMaxHeight
+                && horizontalDistanceSquared <= minerTowerHorizontalRangeSquared) {
+            candidates.add(targetLocation.clone().subtract(0, 1, 0).getBlock());
+        }
+
+        int stepX = Integer.compare(targetLocation.getBlockX(), minerLocation.getBlockX());
+        int stepZ = Integer.compare(targetLocation.getBlockZ(), minerLocation.getBlockZ());
+        List<int[]> offsets = new ArrayList<>(3);
+        if (stepX != 0 && stepZ != 0) offsets.add(new int[]{stepX, stepZ});
+        if (Math.abs(dx) >= Math.abs(dz)) {
+            if (stepX != 0) offsets.add(new int[]{stepX, 0});
+            if (stepZ != 0) offsets.add(new int[]{0, stepZ});
+        } else {
+            if (stepZ != 0) offsets.add(new int[]{0, stepZ});
+            if (stepX != 0) offsets.add(new int[]{stepX, 0});
+        }
+
+        int feetY = minerLocation.getBlockY();
+        for (int[] offset : offsets) {
+            int x = minerLocation.getBlockX() + offset[0];
+            int z = minerLocation.getBlockZ() + offset[1];
+            candidates.add(miner.getWorld().getBlockAt(x, feetY, z));
+            candidates.add(miner.getWorld().getBlockAt(x, feetY + 1, z));
+        }
+        return new ArrayList<>(candidates);
     }
 
     private boolean tryBreak(Zombie miner, Block b) {
@@ -482,13 +549,14 @@ public class xApocalypseUtils {
         if (!minerBreakables.contains(b.getType())) return false;
         if (isInsideClaim(b.getLocation())) return false;
 
+        BlockData brokenData = b.getBlockData();
         if (minerDropItems) {
             b.breakNaturally();
         } else {
             b.setType(Material.AIR);
         }
         b.getWorld().playSound(b.getLocation(), Sound.BLOCK_STONE_BREAK, 1.0f, 1.0f);
-        b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 10, b.getBlockData());
+        b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 10, brokenData);
         return true;
     }
 
@@ -497,20 +565,27 @@ public class xApocalypseUtils {
         if (target == null || !spitter.getWorld().equals(target.getWorld())) return;
 
         double dist = spitter.getLocation().distance(target.getLocation());
-        if (dist > 15 || dist < 4) return;
+        if (dist < spitterRetreatRange) {
+            Vector away = spitter.getLocation().toVector().subtract(target.getLocation().toVector()).setY(0);
+            if (away.lengthSquared() > 0.0001) {
+                Vector currentVelocity = spitter.getVelocity();
+                double verticalVelocity = currentVelocity == null ? 0.0 : currentVelocity.getY();
+                spitter.setVelocity(away.normalize().multiply(spitterRetreatSpeed).setY(verticalVelocity));
+            }
+        }
+        if (dist > spitterMaxRange || dist < spitterMinRange || !spitter.hasLineOfSight(target)) return;
 
         long now = System.currentTimeMillis();
         Long lastSpit = spitter.getPersistentDataContainer().get(LAST_SPIT_KEY, PersistentDataType.LONG);
-        // Bug M1 fix: honor zombie-classes.spitter.projectile-cooldown-seconds (was hardcoded 4 s).
         if (lastSpit != null && (now - lastSpit) < spitterCooldownMs) return;
 
-        spitter.getPersistentDataContainer().set(LAST_SPIT_KEY, PersistentDataType.LONG, now);
-        Vector velocity = target.getLocation().add(0, 1, 0).toVector().subtract(spitter.getEyeLocation().toVector()).normalize().multiply(1.2);
+        Vector aim = target.getEyeLocation().toVector().subtract(spitter.getEyeLocation().toVector());
+        if (aim.lengthSquared() < 0.0001) return;
+        Vector velocity = aim.normalize().multiply(spitterProjectileSpeed);
         LlamaSpit spit = spitter.launchProjectile(LlamaSpit.class, velocity);
         spit.setShooter(spitter);
-        // Bug 2 fix: tag the projectile with a dedicated key so onProjectileHit can identify it.
-        // Using ZOMBIE_TYPE_KEY on the spit never worked — that key belongs to the zombie entity, not the projectile.
         spit.getPersistentDataContainer().set(ACID_SPIT_KEY, PersistentDataType.BYTE, (byte) 1);
+        spitter.getPersistentDataContainer().set(LAST_SPIT_KEY, PersistentDataType.LONG, now);
         spitter.getWorld().playSound(spitter.getLocation(), Sound.ENTITY_LLAMA_SPIT, 1.0f, 0.8f);
     }
 
@@ -608,7 +683,15 @@ public class xApocalypseUtils {
     }
 
     public void handleAcidHit(Entity e) {
+        handleAcidHit(e, null);
+    }
+
+    public void handleAcidHit(Entity e, Entity source) {
         if (!(e instanceof LivingEntity l)) return;
+        if (spitterImpactDamage > 0) {
+            if (source != null) l.damage(spitterImpactDamage, source);
+            else l.damage(spitterImpactDamage);
+        }
         if (spitterPoisonDurationTicks > 0) {
             l.addPotionEffect(new PotionEffect(PotionEffectType.POISON,
                     spitterPoisonDurationTicks, spitterPoisonAmplifier));

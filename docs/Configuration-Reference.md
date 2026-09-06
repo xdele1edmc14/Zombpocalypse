@@ -66,10 +66,17 @@ zombie-classes:
     enabled: true
     break-delay-ticks: 30   # ticks between block breaks (20 = 1 s)
     drop-items: true        # broken blocks drop items
+    tower-min-height: 1.5
+    tower-max-height: 4.0
+    tower-horizontal-range: 3.0
     breakables:             # which block types a Miner may break
       - DIRT
       - GRASS_BLOCK
       - COARSE_DIRT
+      - STONE
+      - COBBLESTONE
+      - DEEPSLATE
+      - COBBLED_DEEPSLATE
       - GLASS
       - TINTED_GLASS
       - OAK_PLANKS
@@ -78,6 +85,12 @@ zombie-classes:
       - JUNGLE_PLANKS
       - ACACIA_PLANKS
       - DARK_OAK_PLANKS
+      - MANGROVE_PLANKS
+      - CHERRY_PLANKS
+      - BAMBOO_PLANKS
+      - CRIMSON_PLANKS
+      - WARPED_PLANKS
+      - PALE_OAK_PLANKS
 
   nurse:
     enabled: true
@@ -96,9 +109,15 @@ zombie-classes:
 
   spitter:
     enabled: true
-    projectile-cooldown-seconds: 6
+    projectile-cooldown-seconds: 4
     poison-duration-seconds: 6
-    poison-level: 1           # Poison I (2 = Poison II)
+    poison-level: 2           # Poison II
+    impact-damage: 2.0        # HP (2 HP = 1 heart)
+    min-range: 1.5
+    max-range: 18.0
+    projectile-speed: 1.4
+    retreat-range: 4.0
+    retreat-speed: 0.22
 
   scorched:
     enabled: true

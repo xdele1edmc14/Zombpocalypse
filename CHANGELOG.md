@@ -2,6 +2,20 @@
 
 All notable changes to xApocalypse are documented here.
 
+## [1.6.1] - 2026-09-06
+
+### Fixed
+
+- Fixed Miner obstruction detection so fractional entity coordinates and diagonal targets no longer make it inspect its own block instead of the wall ahead.
+- Miners now target breakable supporting blocks beneath nearby elevated players, countering simple two-block towers while continuing to respect configured breakables and claim protection.
+- Fixed Spitters becoming harmless after normal zombie pathfinding carried them inside the old four-block minimum range.
+- Spitters now require line of sight, retreat from close targets, aim at the target's eyes, and only start their cooldown after launching successfully.
+
+### Balance
+
+- Reduced the default Spitter cooldown from 6 to 4 seconds, increased the default effect to Poison II, added 2 HP of immediate acid impact damage, and extended its default range to 1.5–18 blocks.
+- Expanded the default Miner breakable list with common stone, deepslate, modern plank, Nether plank, and bamboo plank materials.
+
 ## [1.6.0] - 2026-08-20
 
 ### Changed

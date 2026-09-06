@@ -1,4 +1,4 @@
-# xApocalypse v1.6.0 - Balanced Configuration
+# xApocalypse v1.6.1 - Balanced Configuration
 
 debug-mode: false  # Set to true for detailed console logs
 
@@ -40,10 +40,17 @@ zombie-classes:
     enabled: true
     break-delay-ticks: 30  # Ticks between breaks (20 ticks = 1 second)
     drop-items: true       # Broken blocks drop items
+    tower-min-height: 1.5  # Target height advantage that activates anti-tower digging
+    tower-max-height: 4.0  # Prevents implausible remote digging beneath very tall targets
+    tower-horizontal-range: 3.0 # How close the Miner must be to break beneath an elevated target
     breakables:            # Which blocks miners can break
       - DIRT
       - GRASS_BLOCK
       - COARSE_DIRT
+      - STONE
+      - COBBLESTONE
+      - DEEPSLATE
+      - COBBLED_DEEPSLATE
       - GLASS
       - TINTED_GLASS
       - OAK_PLANKS
@@ -52,6 +59,12 @@ zombie-classes:
       - JUNGLE_PLANKS
       - ACACIA_PLANKS
       - DARK_OAK_PLANKS
+      - MANGROVE_PLANKS
+      - CHERRY_PLANKS
+      - BAMBOO_PLANKS
+      - CRIMSON_PLANKS
+      - WARPED_PLANKS
+      - PALE_OAK_PLANKS
 
   nurse:
     enabled: true
@@ -70,9 +83,15 @@ zombie-classes:
 
   spitter:
     enabled: true
-    projectile-cooldown-seconds: 6  # Time between shots
+    projectile-cooldown-seconds: 4  # Time between shots
     poison-duration-seconds: 6      # How long poison lasts
-    poison-level: 1                 # Poison I (2 = Poison II)
+    poison-level: 2                 # Poison II
+    impact-damage: 2.0              # Immediate damage on hit (2 HP = 1 heart)
+    min-range: 1.5                  # Only disables shots at near-overlap range
+    max-range: 18.0
+    projectile-speed: 1.4
+    retreat-range: 4.0              # Back away while targets are this close
+    retreat-speed: 0.22
 
   scorched:
     enabled: true

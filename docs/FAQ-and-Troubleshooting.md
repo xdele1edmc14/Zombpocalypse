@@ -39,7 +39,7 @@ This is handled: in normal and custom-generator worlds, the spawner uses the no-
 They shouldn't — every class except `NORMAL` gets permanent fire immunity. If you're seeing `NORMAL` zombies burn, that's intended (they behave like vanilla). If custom ones burn, verify `zombie-classes.enabled` is on so types are actually assigned.
 
 ### Spitters / Bursters / Webbers don't do their thing
-- **Spitter** only fires when its target is **4–15 blocks** away — too close or too far and it won't spit.
+- **Spitter** only fires when its target is **1.5–18 blocks** away and visible — near-overlap, blocked line of sight, or excessive distance prevents a shot.
 - **Burster** only starts its fuse once it targets a player within `burster.radius` (default 3 blocks).
 - **Webber/Frost** abilities trigger **on hit**, with cooldowns.
 

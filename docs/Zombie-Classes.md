@@ -56,8 +56,9 @@ The weights below are the shipped defaults. They should total roughly `1.0`; a h
 *Digs through your defenses.* Miners break blocks between themselves and their target to reach you.
 
 - **Stats:** base health / base damage / base speed
-- **AI:** breaks the block in front of it (toward its target) on a cooldown of `break-delay-ticks` (default **30 ticks**).
-  - Only breaks blocks listed in `zombie-classes.miner.breakables` (default: dirt, grass, coarse dirt, glass, tinted glass, and all plank types).
+- **AI:** checks the actual adjacent feet/head obstructions toward its target and breaks one on a cooldown of `break-delay-ticks` (default **30 ticks**).
+  - When a nearby target is between `tower-min-height` and `tower-max-height` blocks above it, the Miner attacks the supporting block beneath that target.
+  - Only breaks blocks listed in `zombie-classes.miner.breakables` (defaults include common terrain, tower, glass, and plank materials).
   - **Never** breaks bedrock, air, or blocks inside a GriefPrevention claim.
   - `drop-items: true` makes broken blocks drop as items; `false` deletes them.
 
@@ -72,9 +73,9 @@ The weights below are the shipped defaults. They should total roughly `1.0`; a h
 ### ☠ Spitter
 *Ranged poison.* Spitters hang back and lob acid at you.
 
-- **Health:** `× 0.85` · **Damage:** `× 0.8`
-- **AI:** when the target is **4–15 blocks** away, launches an acid projectile (a tagged `LlamaSpit`) on a ~4-second cooldown.
-- **On hit:** applies **Poison** for `poison-duration-seconds` at `poison-level` (defaults: 6–8 s, level 1–2), plus slime particles and a splash sound.
+- **Health:** `× 0.85` · **Melee damage:** `× 0.8`
+- **AI:** fires from **1.5–18 blocks**, backs away inside its preferred range, and only spends its cooldown when it has line of sight and launches a projectile.
+- **On hit:** deals `impact-damage` immediately and applies **Poison** for `poison-duration-seconds` at `poison-level` (defaults: 2 HP plus Poison II for 6 s), with slime particles and a splash sound.
 
 ### 🔥 Scorched
 *Wreathed in flame.* Fully fire-immune and unsettling to be near.

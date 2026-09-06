@@ -315,7 +315,8 @@ public class xApocalypseListener implements Listener {
         Byte acidTag = spit.getPersistentDataContainer().get(xApocalypseUtils.ACID_SPIT_KEY, PersistentDataType.BYTE);
         if (acidTag != null) {
             if (event.getHitEntity() != null) {
-                utils.handleAcidHit(event.getHitEntity());
+                Entity shooter = spit.getShooter() instanceof Entity entity ? entity : null;
+                utils.handleAcidHit(event.getHitEntity(), shooter);
             }
         }
     }
